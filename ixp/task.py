@@ -85,8 +85,8 @@ class Block:
 
 
 class Task:
-    def __init__(self, name: str):
-        self.name = name
+    def __init__(self, config):
+        self.config = config
         self.blocks: list[Block] = []
 
     def add_block(self, block: Block):

@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, dict
+from typing import Any
 
 from pylsl import StreamInfo, StreamOutlet
 
 
 class Sensor(ABC):
-    def __init__(self, sensor_id: str, parameters: dict[str, Any]):
-        self.sensor_id = sensor_id
-        self.parameters = parameters
+    def __init__(self, config: dict[str, Any]):
+        self.config = config
         self.lsl_stream = None
         self.data_to_stream = None
 
