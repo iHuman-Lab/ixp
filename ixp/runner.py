@@ -1,101 +1,84 @@
+# ruff: noqa: G004 EM102
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
-from pathlib import Path
 
 import ray
-import yaml
 
 from .sensors.base_sensor import Sensor
 from .task import Task
 
-
-@dataclass
-class TaskEntry:
-    """Holds metadata for a task."""
-
-    order: int
-    task_config: dict
-    name: str
-    remote_class: object  # The Ray remote class
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger()
 
 
-@dataclass
-class SensorEntry:
-    """Holds metadata for a sensor."""
-
-    name: str
-    sensor_config: dict
-    remote_class: object  # The Ray remote class for the sensor
-
-
-def validate(instance: type, base_type: type):
-    if not issubclass(instance, base_type):
-        msg = f'{instance} must be a subclass of {base_type}'
-        raise TypeError(msg)
-
-
-class ExperimentRunner:
-    def __init__(self, config):
-        self.practice_tasks = {}
+# RemoteTask handles tasks in a specific order
+@ray.remote
+class RemoteTask:
+    def __init__(self):
         self.tasks = {}
-        self.sensors = {}
+
+    def add_task(self, task_name: str, task: Task, order: int):
+        """Add task to the RemoteTask with a specified order."""
+        self.tasks[task_name] = {'task': task, 'order': order}
+
+    def execute(self):
+        """Execute tasks in order."""
+        sorted_tasks = sorted(self.tasks.items(), key=lambda item: item[1]['order'])
+        for task_name, task_info in sorted_tasks:
+            logger.info(f'Running task {task_name} (Order: {task_info["order"]})')
+            task_info['task'].execute()
+
+
+# RemoteSensor handles sensor recording and streaming
+@ray.remote
+class RemoteSensor:
+    def __init__(self, sensor_name: str, sensor: Sensor):
+        self.sensor_name = sensor_name
+        self.sensor = sensor
+        self.sensor.create_lsl_stream()
+
+    def record(self):
+        """Record and stream data."""
+        logger.info(f'Recording {self.sensor_name}')
+        while self.sensor.recording:
+            data = self.sensor.read_data()
+            self.sensor.stream_data(data)
+
+
+# Type validation utility
+def validate(instance: object, base_type: type):
+    if not isinstance(instance, base_type):
+        raise TypeError(f'{instance} must be a subclass of {base_type}')
+
+
+# Main runner for the experiment
+class ExperimentRunner:
+    def __init__(self, config: dict):
         self.config = config
+        self.remote_practice_tasks = RemoteTask.remote()
+        self.remote_tasks = RemoteTask.remote()
+        self.remote_sensors = {}
 
-    def add_task(self, name: str, task: type, task_config: dict, order: int, is_practice: bool = False):  # noqa: FBT001, FBT002, PLR0913
-        """Register a task (main or practice)."""
+    def add_task(self, name: str, task: Task, order: int, is_practice: bool = False):  # noqa: FBT001, FBT002
+        """Add a task to the remote task list."""
         validate(task, Task)
-        remote_class = ray.remote(task)
-        actor_handle = remote_class.remote(task_config)
-        if is_practice:
-            self.practice_tasks[name] = TaskEntry(order, name, task_config, actor_handle)
-        else:
-            self.tasks[name] = TaskEntry(order, name, task_config, actor_handle)
+        remote_task = self.remote_practice_tasks if is_practice else self.remote_tasks
+        remote_task.add_task.remote(name, task, order)
 
-    def register_sensor(self, name: str, sensor: type, sensor_config: dict):
-        """Register a sensor instance."""
+    def register_sensor(self, name: str, sensor: Sensor):
+        """Register a sensor for the experiment."""
         validate(sensor, Sensor)
-        remote_class = ray.remote(sensor)
-        actor_handle = remote_class.remote(sensor_config)
-        self.sensors[name] = SensorEntry(name, sensor_config, actor_handle)
-
-    def save_sensor_info(self, sensor_info_save_path='sensor_info.yaml'):
-        """Save information of all registered sensors to a YAML file."""
-        sensor_info = {
-            name: {
-                'config': sensor.sensor_config,
-                'stream_data_signature': ray.get(sensor.remote_class.get_data_signature.remote()),
-            }
-            for name, sensor in self.sensors.items()
-        }
-
-        with Path(sensor_info_save_path).open('w') as f:
-            yaml.dump(sensor_info, f, default_flow_style=False)
-
-        msg = f'Sensor information saved to {sensor_info_save_path}.'
-        logging.info(msg)
-
-    def collect_sensor_data(self):
-        """Collect data from each registered sensor in parallel."""
-        # Collect data by executing 'execute' on each Ray actor (sensor)
-        sensor_tasks = [sensor.remote_class.read_data.remote() for sensor in self.sensors.values()]
-        return ray.get(sensor_tasks)
-
-    def _run_tasks(self, tasks):
-        """Run a list of tasks in order."""
-        for task in sorted(tasks, key=lambda t: t.order):
-            ray.get(task.remote_class.execute.remote())
+        self.remote_sensors[name] = RemoteSensor.remote(name, sensor)
 
     def run(self):
-        """Run the registered tasks and sensors in parallel."""
-        self.save_sensor_info()
-
-        if self.config.get('run_practice'):
-            self._run_tasks(self.practice_tasks.values())
-
-        self.collect_sensor_data()
-        self._run_tasks(self.tasks.values())
+        """Run tasks and sensors in parallel."""
+        tasks_and_sensors = [sensor.record.remote() for sensor in self.remote_sensors.values()]
+        if self.config.get('run_practice', False):
+            tasks_and_sensors.append(self.remote_practice_tasks.execute.remote())
+        tasks_and_sensors.append(self.remote_tasks.execute.remote())
+        ray.get(tasks_and_sensors)
 
     def close(self):
+        """Shut down Ray."""
         ray.shutdown()

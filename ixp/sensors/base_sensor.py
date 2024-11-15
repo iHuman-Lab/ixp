@@ -10,27 +10,24 @@ class Sensor(ABC):
     def __init__(self, config: dict[str, Any]):
         self.config = config
         self.lsl_stream = None
-        self.data_to_stream = None
+        self.recording = True
 
     def create_lsl_stream(self):
         """Create an LSL stream for the sensor using the data signature."""
-        data_signature = self.get_data_signature()
-        num_channels = data_signature['channel_count']
-
         # Create LSL stream with the data signature
         info = StreamInfo(
-            name=data_signature['name'],
-            type=data_signature['type'],
-            channel_count=num_channels,
-            nominal_srate=data_signature['nominal_srate'],
-            channel_format=data_signature['channel_format'],
-            source_id=data_signature['source_id'],
+            name=self.config['name'],
+            type=self.config['type'],
+            channel_count=self.config['channel_count'],
+            nominal_srate=self.config['nominal_srate'],
+            channel_format=self.config['channel_format'],
+            source_id=self.config['source_id'],
         )
         self.lsl_stream = StreamOutlet(info)
 
-    def stream_data(self):
+    def stream_data(self, data_to_stream):
         """Stream data for this sensor."""
-        self.lsl_stream.push_sample(self.data_to_stream)
+        self.lsl_stream.push_sample(data_to_stream)
 
     @abstractmethod
     def get_data_signature(self) -> dict[str, Any]:
