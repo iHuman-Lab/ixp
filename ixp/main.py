@@ -45,7 +45,7 @@ def main():
                 screen,
                 font,
                 [
-                    "VISUAL SEARCH TASK",
+                    "Hello, Welcome to the Visual Search Task",
                     "Press SPACE to begin",
                 ],
             )
@@ -60,8 +60,7 @@ def main():
                 screen,
                 font,
                 [
-                    "INSTRUCTIONS",
-                    "Find the complete T",
+                    "INSTRUCTIONS", 
                     "Use arrow keys for orientation",
                     "Press SPACE to start",
                 ],
