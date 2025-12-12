@@ -1,0 +1,32 @@
+colors:
+  white: [255, 255, 255]
+  black: [0, 0, 0]
+  gray:  [120, 120, 120]
+
+window:
+  width: 800
+  height: 600
+
+experiment:
+  total_trials: 30
+  difficulty_levels:
+    - ["Easy", 6]
+    - ["Medium", 12]
+    - ["Hard", 20]
+
+timing:
+  fixation_time: 600
+  isi_time: 600
+  response_timeout: 2.0
+  iti_time: 300
+
+
+stimuli:
+  angles: [0, 90, 180, 270]
+  defective_types: ["┤", "┘", "└", "┌"]
+  stim_size: 40
+
+
+files:
+  correct_sound: "correct.wav"
+  results: "vs_results.csv"
