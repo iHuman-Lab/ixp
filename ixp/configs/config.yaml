@@ -27,6 +27,15 @@ stimuli:
   stim_size: 40
 
 
+vs:
+  total_trials: 40
+  iti_time: 500
+  difficulty_levels:
+    - ["easy", 8]
+    - ["medium", 12]
+    - ["hard", 16]
+
+
 files:
   correct_sound: "correct.wav"
   results: "vs_results.csv"

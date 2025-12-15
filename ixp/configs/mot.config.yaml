@@ -1,0 +1,14 @@
+mot:
+  num_objects: 10
+  num_targets: 3
+  radius: 12
+
+  n_trials: 10
+  base_speed: 1.8
+  speed_step: 0.25
+
+  highlight_time: 2.0
+  trial_time: 6.0
+
+  output_file: "mot_results.csv"
+  random_seed: 42
