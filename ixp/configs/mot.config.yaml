@@ -1,7 +1,7 @@
 mot:
   num_objects: 10
   num_targets: 3
-  radius: 12
+  radius: 20
 
   n_trials: 10
   base_speed: 1.8

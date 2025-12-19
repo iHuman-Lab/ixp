@@ -42,14 +42,15 @@ def main():
                 config=config
             )
 
-    # ---------------- MOT ----------------
-    with skip_run("run", "mot_task") as check:
+    
+    with skip_run("run", "mot_task") as check:# ---------------- MOT ----------------
         if check():
             run_mot(
                 screen=screen,
                 font=font,
                 config=config
             )
+            
 
     pygame.quit()
 

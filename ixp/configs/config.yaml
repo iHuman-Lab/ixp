@@ -7,35 +7,21 @@ window:
   width: 800
   height: 600
 
-experiment:
-  total_trials: 30
-  difficulty_levels:
-    - ["Easy", 6]
-    - ["Medium", 12]
-    - ["Hard", 20]
-
 timing:
   fixation_time: 600
   isi_time: 600
   response_timeout: 2.0
   iti_time: 300
 
-
 stimuli:
   angles: [0, 90, 180, 270]
-  defective_types: ["┤", "┘", "└", "┌"]
+  defective_types: ["left", "right"]   # ONLY two defective Ts
   stim_size: 40
 
-
 vs:
-  total_trials: 40
-  iti_time: 500
-  difficulty_levels:
-    - ["easy", 8]
-    - ["medium", 12]
-    - ["hard", 16]
-
+  num_items: 12        # fixed difficulty
+  iti_time: 500        # inter-trial interval
+  total_trials: 5      # run task exactly 5 times
 
 files:
-  correct_sound: "correct.wav"
   results: "vs_results.csv"

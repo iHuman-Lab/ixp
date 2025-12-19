@@ -3,7 +3,6 @@ import random
 import time
 import csv
 
-
 # =======================================================
 # DRAWING HELPERS
 # =======================================================
@@ -28,16 +27,24 @@ def draw_complete_T(surface, x, y, angle, stim_size, color):
 
 def draw_defective_T(surface, x, y, defect_type, angle, stim_size, color):
     t = pygame.Surface((stim_size, stim_size), pygame.SRCALPHA)
-    pygame.draw.rect(t, color, (stim_size * 0.375, 0, stim_size * 0.25, stim_size))
 
-    if defect_type == "┤":
-        pygame.draw.rect(t, color, (0, 0, stim_size * 0.25, stim_size * 0.25))
-    elif defect_type == "┘":
-        pygame.draw.rect(t, color, (stim_size * 0.375, stim_size * 0.75, stim_size * 0.625, stim_size * 0.25))
-    elif defect_type == "└":
-        pygame.draw.rect(t, color, (0, stim_size * 0.75, stim_size * 0.625, stim_size * 0.25))
-    elif defect_type == "┌":
-        pygame.draw.rect(t, color, (0, 0, stim_size * 0.625, stim_size * 0.25))
+    # vertical stem
+    pygame.draw.rect(
+        t, color,
+        (stim_size * 0.375, 0, stim_size * 0.25, stim_size)
+    )
+
+    # only one side of horizontal bar
+    if defect_type == "left":
+        pygame.draw.rect(
+            t, color,
+            (0, 0, stim_size * 0.5, stim_size * 0.25)
+        )
+    elif defect_type == "right":
+        pygame.draw.rect(
+            t, color,
+            (stim_size * 0.5, 0, stim_size * 0.5, stim_size * 0.25)
+        )
 
     surface.blit(pygame.transform.rotate(t, angle), (x, y))
 
@@ -87,13 +94,42 @@ def run_trial(screen, config, num_items):
     pygame.display.flip()
     pygame.time.delay(timing["isi_time"])
 
-    positions = [
-        (
-            random.randint(50, screen.get_width() - 50),
-            random.randint(50, screen.get_height() - 50),
-        )
-        for _ in range(num_items)
-    ]
+    # -------- SPATIALLY COVERED, NON-OVERLAPPING DISTRIBUTION --------
+    cols = int(num_items ** 0.5)
+    rows = (num_items + cols - 1) // cols
+
+    margin = stimuli.get("margin", 80)
+
+    usable_w = screen.get_width() - 2 * margin
+    usable_h = screen.get_height() - 2 * margin
+
+    cell_w = usable_w // cols
+    cell_h = usable_h // rows
+
+    # build region list
+    cells = []
+    for r in range(rows):
+        for c in range(cols):
+            cells.append((r, c))
+
+    random.shuffle(cells)
+
+    positions = []
+    stim_half = stimuli["stim_size"] // 2
+
+    for i in range(num_items):
+        r, c = cells[i]
+
+        x_min = margin + c * cell_w + stim_half
+        x_max = margin + (c + 1) * cell_w - stim_half
+        y_min = margin + r * cell_h + stim_half
+        y_max = margin + (r + 1) * cell_h - stim_half
+
+        x = random.randint(x_min, x_max)
+        y = random.randint(y_min, y_max)
+
+        positions.append((x, y))
+    # ----------------------------------------------------------------
 
     target_idx = random.randint(0, num_items - 1)
     target_angle = random.choice(stimuli["angles"])
@@ -107,16 +143,20 @@ def run_trial(screen, config, num_items):
 
     screen.fill(colors["gray"])
 
+    defective_types = stimuli["defective_types"]
+
     for i, (x, y) in enumerate(positions):
         if i == target_idx:
             draw_complete_T(
-                screen, x, y, target_angle,
-                stimuli["stim_size"], colors["black"]
+                screen, x, y,
+                target_angle,
+                stimuli["stim_size"],
+                colors["black"],
             )
         else:
             draw_defective_T(
                 screen, x, y,
-                random.choice(stimuli["defective_types"]),
+                random.choice(defective_types),
                 random.choice(stimuli["angles"]),
                 stimuli["stim_size"],
                 colors["black"],
@@ -139,27 +179,18 @@ def save_results(results, filepath):
 
 
 # =======================================================
-# TASK ENTRY POINT (USED BY main.py)
+# TASK ENTRY POINT
 # =======================================================
 def run_visual_search(screen, font, config):
-    """
-    Visual Search task.
-    Uses ONLY config.yaml. No duplicated parameters.
-    """
 
     colors = config["colors"]
     vs_cfg = config["vs"]
-    experiment_cfg = config["experiment"]
-    timing = config["timing"]
     files = config["files"]
 
     wait_for_space(
         screen,
         font,
-        [
-            "Hello, Welcome to the Visual Search Task",
-            "Press SPACE to begin",
-        ],
+        ["Hello, Welcome to the Visual Search Task", "Press SPACE to begin"],
         colors["gray"],
         colors["white"],
     )
@@ -167,24 +198,17 @@ def run_visual_search(screen, font, config):
     wait_for_space(
         screen,
         font,
-        [
-            "INSTRUCTIONS",
-            "Use arrow keys for orientation",
-            "Press SPACE to start",
-        ],
+        ["INSTRUCTIONS", "Use arrow keys for orientation", "Press SPACE to start"],
         colors["gray"],
         colors["white"],
     )
 
     results = []
-    level_index = 0
 
-    for trial in range(1, vs_cfg["total_trials"] + 1):
+    num_trials = vs_cfg["total_trials"]
+    num_items = vs_cfg["num_items"]
 
-        if trial % 10 == 0 and level_index < len(vs_cfg["difficulty_levels"]) - 1:
-            level_index += 1
-
-        label, num_items = vs_cfg["difficulty_levels"][level_index]
+    for trial in range(1, num_trials + 1):
 
         correct, rt = run_trial(
             screen=screen,
@@ -192,7 +216,14 @@ def run_visual_search(screen, font, config):
             num_items=num_items,
         )
 
-        results.append([trial, label, num_items, correct, rt])
+        results.append([
+            trial,
+            "fixed",
+            num_items,
+            correct,
+            rt,
+        ])
+
         pygame.time.delay(vs_cfg["iti_time"])
 
     save_results(results, files["results"])
