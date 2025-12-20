@@ -34,7 +34,7 @@ def main():
             font = pygame.font.SysFont(None, 40)
 
     # ---------------- VISUAL SEARCH ----------------
-    with skip_run("skip", "visual_search") as check:
+    with skip_run("run", "visual_search") as check:
         if check():
             run_visual_search(
                 screen=screen,
@@ -43,7 +43,7 @@ def main():
             )
 
     
-    with skip_run("run", "mot_task") as check:# ---------------- MOT ----------------
+    with skip_run("skip", "mot_task") as check:# ---------------- MOT ----------------
         if check():
             run_mot(
                 screen=screen,

@@ -13,10 +13,20 @@ timing:
   response_timeout: 2.0
   iti_time: 300
 
+
+
 stimuli:
-  angles: [0, 90, 180, 270]
-  defective_types: ["left", "right"]   # ONLY two defective Ts
   stim_size: 40
+
+  angles:
+    - 0
+    - 90
+    - 180
+    - 270
+
+  defective_types:
+    - left_short
+    - right_short
 
 vs:
   num_items: 12        # fixed difficulty

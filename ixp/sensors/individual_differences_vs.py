@@ -25,26 +25,41 @@ def draw_complete_T(surface, x, y, angle, stim_size, color):
     surface.blit(pygame.transform.rotate(t, angle), (x, y))
 
 
+
 def draw_defective_T(surface, x, y, defect_type, angle, stim_size, color):
     t = pygame.Surface((stim_size, stim_size), pygame.SRCALPHA)
 
-    # vertical stem
+    bar_thickness = stim_size * 0.25
+    stem_width = stim_size * 0.25
+    stem_x = stim_size * 0.375
+
+    # vertical stem (unchanged)
     pygame.draw.rect(
         t, color,
-        (stim_size * 0.375, 0, stim_size * 0.25, stim_size)
+        (stem_x, 0, stem_width, stim_size)
     )
 
-    # only one side of horizontal bar
-    if defect_type == "left":
-        pygame.draw.rect(
-            t, color,
-            (0, 0, stim_size * 0.5, stim_size * 0.25)
-        )
-    elif defect_type == "right":
-        pygame.draw.rect(
-            t, color,
-            (stim_size * 0.5, 0, stim_size * 0.5, stim_size * 0.25)
-        )
+    # asymmetric horizontal bar
+    if defect_type == "left_short":
+        left_len = stim_size * 0.25
+        right_len = stim_size * 0.75
+    elif defect_type == "right_short":
+        left_len = stim_size * 0.75
+        right_len = stim_size * 0.25
+    else:
+        left_len = right_len = stim_size * 0.5  # fallback
+
+    # draw left arm
+    pygame.draw.rect(
+        t, color,
+        (stem_x - left_len, 0, left_len, bar_thickness)
+    )
+
+    # draw right arm
+    pygame.draw.rect(
+        t, color,
+        (stem_x + stem_width, 0, right_len, bar_thickness)
+    )
 
     surface.blit(pygame.transform.rotate(t, angle), (x, y))
 
