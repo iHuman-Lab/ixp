@@ -1,12 +1,20 @@
 from __future__ import annotations
 
-import ray
+from pathlib import Path
 
+import ray
+import yaml
+
+from ixp.individual_difference.mot import MOT
+from ixp.individual_difference.vs import run_visual_search
 from ixp.runner import ExperimentRunner
 from tests.examples import ExampleSensor, ExampleTask
 from utils import skip_run
 
-with skip_run('run', 'test_features') as check, check():
+with Path.open('ixp/configs/config.yaml') as f:
+    config = yaml.safe_load(f)
+
+with skip_run('skip', 'test_features') as check, check():
     # Initialize Ray
     ray.init(ignore_reinit_error=True)
 
@@ -42,3 +50,18 @@ with skip_run('run', 'test_features') as check, check():
 
     # Clean up
     runner.close()
+
+with skip_run('skip', 'visual_search') as check, check():
+    # TODO: Convert this to Task class
+    run_visual_search(config=config)
+
+with skip_run('skip', 'multi_object_tracking') as check, check():
+    ray.init(ignore_reinit_error=True)
+
+    # Create an instance of ExperimentRunner
+    runner = ExperimentRunner(config)
+    # Register a practice task
+    runner.add_task(name='multi_object_tracking', task_cls=MOT, task_config={'config': config['mot']}, order=1)
+
+    # Run the experiment
+    runner.run()

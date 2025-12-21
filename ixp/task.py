@@ -84,7 +84,7 @@ class Block:
             trial.execute()  # Execute the trial
 
 
-class Task:
+class LSLTask:
     def __init__(self, config):
         self.config = config
         self.blocks: list[Block] = []
@@ -96,3 +96,12 @@ class Task:
     def execute(self, order: str = 'predefined'):
         for block in self.blocks:
             block.execute(order)
+
+
+class GeneralTask:
+    def __init__(self, config):
+        self.config = config
+
+    @abstractmethod
+    def execute(self):
+        raise NotImplementedError

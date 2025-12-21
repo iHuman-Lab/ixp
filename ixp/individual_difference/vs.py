@@ -1,11 +1,12 @@
-import pygame
+from __future__ import annotations
+
+import csv
 import random
 import time
-import csv
 
-# =======================================================
-# DRAWING HELPERS
-# =======================================================
+import pygame
+
+
 def draw_text_center(screen, font, text, y, color):
     rendered = font.render(text, True, color)
     rect = rendered.get_rect(center=(screen.get_width() // 2, y))
@@ -18,48 +19,24 @@ def draw_fixation(screen, color):
     pygame.draw.line(screen, color, (cx - 15, cy), (cx + 15, cy), 3)
 
 
-def draw_complete_T(surface, x, y, angle, stim_size, color):
+def draw_complete_t(surface, x, y, angle, stim_size, color):
     t = pygame.Surface((stim_size, stim_size), pygame.SRCALPHA)
     pygame.draw.rect(t, color, (stim_size * 0.375, 0, stim_size * 0.25, stim_size))
     pygame.draw.rect(t, color, (0, 0, stim_size, stim_size * 0.25))
     surface.blit(pygame.transform.rotate(t, angle), (x, y))
 
 
-
 def draw_defective_T(surface, x, y, defect_type, angle, stim_size, color):
     t = pygame.Surface((stim_size, stim_size), pygame.SRCALPHA)
 
-    bar_thickness = stim_size * 0.25
-    stem_width = stim_size * 0.25
-    stem_x = stim_size * 0.375
+    # vertical stem
+    pygame.draw.rect(t, color, (stim_size * 0.375, 0, stim_size * 0.25, stim_size))
 
-    # vertical stem (unchanged)
-    pygame.draw.rect(
-        t, color,
-        (stem_x, 0, stem_width, stim_size)
-    )
-
-    # asymmetric horizontal bar
-    if defect_type == "left_short":
-        left_len = stim_size * 0.25
-        right_len = stim_size * 0.75
-    elif defect_type == "right_short":
-        left_len = stim_size * 0.75
-        right_len = stim_size * 0.25
-    else:
-        left_len = right_len = stim_size * 0.5  # fallback
-
-    # draw left arm
-    pygame.draw.rect(
-        t, color,
-        (stem_x - left_len, 0, left_len, bar_thickness)
-    )
-
-    # draw right arm
-    pygame.draw.rect(
-        t, color,
-        (stem_x + stem_width, 0, right_len, bar_thickness)
-    )
+    # only one side of horizontal bar
+    if defect_type == 'left':
+        pygame.draw.rect(t, color, (0, 0, stim_size * 0.5, stim_size * 0.25))
+    elif defect_type == 'right':
+        pygame.draw.rect(t, color, (stim_size * 0.5, 0, stim_size * 0.5, stim_size * 0.25))
 
     surface.blit(pygame.transform.rotate(t, angle), (x, y))
 
@@ -96,24 +73,23 @@ def wait_for_response(timeout):
 # SINGLE TRIAL
 # =======================================================
 def run_trial(screen, config, num_items):
+    colors = config['colors']
+    timing = config['timing']
+    stimuli = config['stimuli']
 
-    colors = config["colors"]
-    timing = config["timing"]
-    stimuli = config["stimuli"]
-
-    screen.fill(colors["gray"])
+    screen.fill(colors['gray'])
     pygame.display.flip()
-    pygame.time.delay(timing["fixation_time"])
+    pygame.time.delay(timing['fixation_time'])
 
-    draw_fixation(screen, colors["white"])
+    draw_fixation(screen, colors['white'])
     pygame.display.flip()
-    pygame.time.delay(timing["isi_time"])
+    pygame.time.delay(timing['isi_time'])
 
     # -------- SPATIALLY COVERED, NON-OVERLAPPING DISTRIBUTION --------
-    cols = int(num_items ** 0.5)
+    cols = int(num_items**0.5)
     rows = (num_items + cols - 1) // cols
 
-    margin = stimuli.get("margin", 80)
+    margin = stimuli.get('margin', 80)
 
     usable_w = screen.get_width() - 2 * margin
     usable_h = screen.get_height() - 2 * margin
@@ -130,7 +106,7 @@ def run_trial(screen, config, num_items):
     random.shuffle(cells)
 
     positions = []
-    stim_half = stimuli["stim_size"] // 2
+    stim_half = stimuli['stim_size'] // 2
 
     for i in range(num_items):
         r, c = cells[i]
@@ -147,7 +123,7 @@ def run_trial(screen, config, num_items):
     # ----------------------------------------------------------------
 
     target_idx = random.randint(0, num_items - 1)
-    target_angle = random.choice(stimuli["angles"])
+    target_angle = random.choice(stimuli['angles'])
 
     correct_key = {
         0: pygame.K_UP,
@@ -156,40 +132,41 @@ def run_trial(screen, config, num_items):
         270: pygame.K_RIGHT,
     }[target_angle]
 
-    screen.fill(colors["gray"])
+    screen.fill(colors['gray'])
 
-    defective_types = stimuli["defective_types"]
+    defective_types = stimuli['defective_types']
 
     for i, (x, y) in enumerate(positions):
         if i == target_idx:
-            draw_complete_T(
-                screen, x, y,
+            draw_complete_t(
+                screen,
+                x,
+                y,
                 target_angle,
-                stimuli["stim_size"],
-                colors["black"],
+                stimuli['stim_size'],
+                colors['black'],
             )
         else:
             draw_defective_T(
-                screen, x, y,
+                screen,
+                x,
+                y,
                 random.choice(defective_types),
-                random.choice(stimuli["angles"]),
-                stimuli["stim_size"],
-                colors["black"],
+                random.choice(stimuli['angles']),
+                stimuli['stim_size'],
+                colors['black'],
             )
 
     pygame.display.flip()
 
-    response, rt = wait_for_response(timing["response_timeout"])
+    response, rt = wait_for_response(timing['response_timeout'])
     return response == correct_key, rt
 
 
-# =======================================================
-# SAVE RESULTS
-# =======================================================
 def save_results(results, filepath):
-    with open(filepath, "w", newline="") as f:
+    with open(filepath, 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(["trial", "difficulty", "num_items", "correct", "rt_ms"])
+        writer.writerow(['trial', 'difficulty', 'num_items', 'correct', 'rt_ms'])
         writer.writerows(results)
 
 
@@ -197,48 +174,48 @@ def save_results(results, filepath):
 # TASK ENTRY POINT
 # =======================================================
 def run_visual_search(screen, font, config):
-
-    colors = config["colors"]
-    vs_cfg = config["vs"]
-    files = config["files"]
+    colors = config['colors']
+    vs_cfg = config['vs']
+    files = config['files']
 
     wait_for_space(
         screen,
         font,
-        ["Hello, Welcome to the Visual Search Task", "Press SPACE to begin"],
-        colors["gray"],
-        colors["white"],
+        ['Hello, Welcome to the Visual Search Task', 'Press SPACE to begin'],
+        colors['gray'],
+        colors['white'],
     )
 
     wait_for_space(
         screen,
         font,
-        ["INSTRUCTIONS", "Use arrow keys for orientation", "Press SPACE to start"],
-        colors["gray"],
-        colors["white"],
+        ['INSTRUCTIONS', 'Use arrow keys for orientation', 'Press SPACE to start'],
+        colors['gray'],
+        colors['white'],
     )
 
     results = []
 
-    num_trials = vs_cfg["total_trials"]
-    num_items = vs_cfg["num_items"]
+    num_trials = vs_cfg['total_trials']
+    num_items = vs_cfg['num_items']
 
     for trial in range(1, num_trials + 1):
-
         correct, rt = run_trial(
             screen=screen,
             config=config,
             num_items=num_items,
         )
 
-        results.append([
-            trial,
-            "fixed",
-            num_items,
-            correct,
-            rt,
-        ])
+        results.append(
+            [
+                trial,
+                'fixed',
+                num_items,
+                correct,
+                rt,
+            ]
+        )
 
-        pygame.time.delay(vs_cfg["iti_time"])
+        pygame.time.delay(vs_cfg['iti_time'])
 
-    save_results(results, files["results"])
+    save_results(results, files['results'])

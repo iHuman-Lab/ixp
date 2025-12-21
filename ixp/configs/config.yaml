@@ -1,37 +1,32 @@
 colors:
   white: [255, 255, 255]
   black: [0, 0, 0]
-  gray:  [120, 120, 120]
+  gray: [120, 120, 120]
 
-window:
+vs:
   width: 800
   height: 600
-
-timing:
+  num_items: 12
+  iti_time: 500
+  total_trials: 5
   fixation_time: 600
   isi_time: 600
   response_timeout: 2.0
-  iti_time: 300
-
-
-
-stimuli:
   stim_size: 40
+  angles: [0, 90, 180, 270]
+  defective_types: ['left_short', 'right_short']
+  save_path: 'vs_results.csv'
 
-  angles:
-    - 0
-    - 90
-    - 180
-    - 270
-
-  defective_types:
-    - left_short
-    - right_short
-
-vs:
-  num_items: 12        # fixed difficulty
-  iti_time: 500        # inter-trial interval
-  total_trials: 5      # run task exactly 5 times
-
-files:
-  results: "vs_results.csv"
+mot:
+  width: 800
+  height: 600
+  num_objects: 20
+  num_targets: 3
+  radius: 20
+  n_trials: 10
+  speed: 3.0
+  speed_step: 0.25
+  highlight_time: 2.0
+  trial_time: 6.0
+  output_file: 'mot_results.csv'
+  random_seed: 42
