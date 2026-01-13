@@ -1,6 +1,6 @@
-trial,difficulty,num_items,correct,rt_ms
-1,fixed,12,False,
-2,fixed,12,False,3.5233497619628906
-3,fixed,12,False,
-4,fixed,12,False,2.228975296020508
-5,fixed,12,False,1455.5470943450928
+trial,correct,rt_ms
+1,False,
+2,False,1984.0123653411865
+3,False,
+4,False,
+5,False,
