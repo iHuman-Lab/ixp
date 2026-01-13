@@ -23,7 +23,7 @@ mot:
   num_objects: 20
   num_targets: 3
   radius: 20
-  n_trials: 10
+  n_trials: 3
   speed: 3.0
   speed_step: 0.25
   highlight_time: 2.0
