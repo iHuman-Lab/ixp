@@ -61,8 +61,6 @@ class TStimulus(pygame.sprite.Sprite):
 
         s = self.size
  
-        # big canvas to avoid rotation clipping
-
         canvas_size = s * 3
 
         base = pygame.Surface((canvas_size, canvas_size), pygame.SRCALPHA)
@@ -81,21 +79,11 @@ class TStimulus(pygame.sprite.Sprite):
  
         # vertical stem
 
-        pygame.draw.rect(
-
-            base,
-
-            color,
-
-            pygame.Rect(cx - thickness // 2, top_y, thickness, stem_len),
-
-        )
+        pygame.draw.rect(base, color, pygame.Rect(cx - thickness // 2, top_y, thickness, stem_len))
  
         # horizontal bar at TOP
 
         if self.is_target:
-
-            # complete T = full bar
 
             left_len = bar_len // 2
 
@@ -103,14 +91,12 @@ class TStimulus(pygame.sprite.Sprite):
 
         else:
 
-            # defective T = both sides exist, but one side shorter
-
-            short = int(0.25 * bar_len)   # how much to shorten
+            short = int(0.25 * bar_len)
 
             left_len = bar_len // 2
 
             right_len = bar_len // 2
- 
+
             if self.defect_type == "left_short":
 
                 left_len = max(thickness, left_len - short)
@@ -119,40 +105,16 @@ class TStimulus(pygame.sprite.Sprite):
 
                 right_len = max(thickness, right_len - short)
  
-        # draw left arm (from center to left)
+        pygame.draw.rect(base, color, pygame.Rect(cx - left_len, top_y, left_len, thickness))
 
-        pygame.draw.rect(
-
-            base,
-
-            color,
-
-            pygame.Rect(cx - left_len, top_y, left_len, thickness),
-
-        )
+        pygame.draw.rect(base, color, pygame.Rect(cx, top_y, right_len, thickness))
  
-        # draw right arm (from center to right)
-
-        pygame.draw.rect(
-
-            base,
-
-            color,
-
-            pygame.Rect(cx, top_y, right_len, thickness),
-
-        )
- 
-        # rotate the whole symbol
-
         rotated = pygame.transform.rotate(base, self.angle)
  
-        # crop center to 2s x 2s
-
         out = pygame.Surface((s * 2, s * 2), pygame.SRCALPHA)
 
         r = rotated.get_rect(center=(rotated.get_width() // 2, rotated.get_height() // 2))
-
+ 
         crop = pygame.Rect(0, 0, s * 2, s * 2)
 
         crop.center = r.center
@@ -185,25 +147,75 @@ class VisualSearch(GeneralTask):
         self.clock = pygame.time.Clock()
 
         self.stimuli = pygame.sprite.Group()
- 
+
         self.feedback_ms = 250
  
-    def _positions(self, n: int, size: int) -> list[tuple[int, int]]:
+    def _positions(self, n: int, stim_size: int) -> list[tuple[int, int]]:
+
+        """
+
+        Grid-based positions + jitter.
+
+        - Covers the full screen
+
+        - Prevents overlap (by design)
+
+        """
 
         w, h = self.window.get_width(), self.window.get_height()
+ 
+        margin = max(80, stim_size * 2)
 
-        margin = max(60, size * 2)
+        usable_w = w - 2 * margin
 
+        usable_h = h - 2 * margin
+ 
+        # choose grid dimensions close to square
+
+        cols = int(n**0.5)
+
+        rows = (n + cols - 1) // cols
+ 
+        cell_w = usable_w // cols
+
+        cell_h = usable_h // rows
+ 
+        # build all grid cells
+
+        cells = [(r, c) for r in range(rows) for c in range(cols)]
+
+        random.shuffle(cells)
+ 
         positions = []
 
-        for _ in range(n):
+        half = stim_size  # image is about 2*stim_size wide/high after rendering
+ 
+        # jitter inside each cell (small random move)
 
-            positions.append(
+        jitter_x = max(2, cell_w // 4)
 
-                (random.randint(margin, w - margin), random.randint(margin, h - margin))
+        jitter_y = max(2, cell_h // 4)
+ 
+        for i in range(n):
 
-            )
+            r, c = cells[i]
+ 
+            cx = margin + c * cell_w + cell_w // 2
 
+            cy = margin + r * cell_h + cell_h // 2
+ 
+            x = cx + random.randint(-jitter_x, jitter_x)
+
+            y = cy + random.randint(-jitter_y, jitter_y)
+ 
+            # extra safety clamp so the full symbol stays in frame
+
+            x = max(margin + half, min(w - margin - half, x))
+
+            y = max(margin + half, min(h - margin - half, y))
+ 
+            positions.append((x, y))
+ 
         return positions
  
     def _create_trial_stimuli(self) -> None:
@@ -218,8 +230,10 @@ class VisualSearch(GeneralTask):
 
         defect_types = self.vs.get("defective_types", ["left_short", "right_short"])
  
-        positions = self._positions(n, size)
+        # IMPORTANT: use grid-based positions (no overlap, good coverage)
 
+        positions = self._positions(n, size)
+ 
         target_idx = random.randint(0, n - 1)
  
         for i, (x, y) in enumerate(positions):
@@ -251,9 +265,9 @@ class VisualSearch(GeneralTask):
         timeout = float(self.vs["response_timeout"])
 
         self._create_trial_stimuli()
-
-        start = time.time()
  
+        start = time.time()
+
         while time.time() - start < timeout:
 
             for event in pygame.event.get():

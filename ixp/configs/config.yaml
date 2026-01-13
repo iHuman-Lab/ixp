@@ -20,11 +20,11 @@ vs:
 mot:
   width: 800
   height: 600
-  num_objects: 20
+  num_objects: 10
   num_targets: 3
   radius: 20
   n_trials: 3
-  speed: 3.0
+  speed: 2.0
   speed_step: 0.25
   highlight_time: 2.0
   trial_time: 6.0
