@@ -1,6 +1,6 @@
-trial,correct,rt_ms
-1,False,
-2,True,1760.8518600463867
-3,False,
-4,False,
-5,False,
+trial,response,correct_answer,rt
+1,timeout,left,3
+2,left,left,3.0125648975372314
+3,up,up,0.7999067306518555
+4,up,up,1.3135790824890137
+5,left,right,0.0018260478973388672
