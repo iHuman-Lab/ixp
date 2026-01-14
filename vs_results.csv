@@ -1,6 +1,6 @@
 trial,response,correct_answer,rt
-1,timeout,left,3
-2,left,left,3.0125648975372314
-3,up,up,0.7999067306518555
-4,up,up,1.3135790824890137
-5,left,right,0.0018260478973388672
+1,timeout,right,3
+2,timeout,up,3
+3,timeout,up,3
+4,timeout,left,3
+5,timeout,left,3
