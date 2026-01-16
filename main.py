@@ -5,12 +5,10 @@ from pathlib import Path
 import ray
 import yaml
 
-from ixp.individual_difference.vs import VS
+from ixp.individual_difference import MOT, VS
 from ixp.runner import ExperimentRunner
 from tests.examples import ExampleSensor, ExampleTask
 from utils import skip_run
-from ixp.individual_difference.mot import MOT
-
 
 with Path.open('ixp/configs/config.yaml') as f:
     config = yaml.safe_load(f)

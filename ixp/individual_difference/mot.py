@@ -1,19 +1,18 @@
 from __future__ import annotations
 
-import csv
 import math
 import random
-from pathlib import Path
 
 import pygame
 
+from ixp.individual_difference.utils import check_quit, create_window, parse_color, save_results, show_fixation
 from ixp.task import GeneralTask
 
 
 class Circle(pygame.sprite.Sprite):
-    DEFAULT_COLOR = (200, 200, 200)
-    TARGET_COLOR = (255, 0, 0)
-    SELECTED_COLOR = (0, 255, 0)
+    DEFAULT_COLOR = (255, 255, 255)
+    TARGET_COLOR = (0, 0, 0)
+    SELECTED_COLOR = (0, 0, 0)
 
     def __init__(self, is_target, speed, radius, width, height):
         super().__init__()
@@ -77,41 +76,50 @@ class Circle(pygame.sprite.Sprite):
         self.selected = True
         self.image = self.image_selected
 
+    def reset_position(self):
+        """Reset circle to a random position with a random velocity."""
+        self.rect.center = (
+            random.randint(self.radius, self.width - self.radius),
+            random.randint(self.radius, self.height - self.radius),
+        )
+        angle = random.uniform(0, 2 * math.pi)
+        self.vx = self.speed * math.cos(angle)
+        self.vy = self.speed * math.sin(angle)
+
 
 class MOT(GeneralTask):
     def __init__(self, config):
         super().__init__(config)
 
-        pygame.init()
-        self.config = config
-
-        self.window = pygame.display.set_mode((config["width"], config["height"]))
-        pygame.display.set_caption("MOT")
+        self.cfg = config
+        self.window = create_window(config)
+        pygame.display.set_caption('Multiple Object Tracking')
 
         self.clock = pygame.time.Clock()
 
-        # 3 targets
-        self.target_ids = set(random.sample(range(config["num_objects"]), 3))
+        self.background_color = parse_color(config, 'background_color', [120, 120, 120])
+        self.fixation_color = parse_color(config, 'fixation_color', [0, 0, 0])
+
+        # targets
+        self.target_ids = set(random.sample(range(config['num_objects']), config['num_targets']))
         self.circles = pygame.sprite.Group()
         self._create_circles()
 
     def _create_circles(self):
-        for i in range(self.config["num_objects"]):
+        for i in range(self.cfg['num_objects']):
             self.circles.add(
                 Circle(
                     is_target=(i in self.target_ids),
-                    speed=self.config["speed"],
-                    radius=self.config["radius"],
+                    speed=self.cfg['speed'],
+                    radius=self.cfg['radius'],
                     width=self.window.get_width(),
                     height=self.window.get_height(),
                 )
             )
 
     def _update_screen(self, update_motion: bool = True):
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                raise SystemExit
+        if check_quit():
+            raise SystemExit
 
         if update_motion:
             self.circles.update()
@@ -120,69 +128,98 @@ class MOT(GeneralTask):
         self.clock.tick(60)
 
     def _draw(self):
-        self.window.fill((0, 0, 0))
+        self.window.fill(self.background_color)
         self.circles.draw(self.window)
         pygame.display.flip()
 
-    def single_trial(self):
-        # reset selections + show targets, but keep them stable
+    def _show_fixation(self):
+        show_fixation(
+            self.window,
+            self.background_color,
+            self.fixation_color,
+            self.cfg.get('fixation_time', 1000),
+        )
+
+    def _wait(self, duration_ms):
+        """Wait for a specified duration while updating the screen."""
+        start = pygame.time.get_ticks()
+        while pygame.time.get_ticks() - start < duration_ms:
+            self._update_screen(update_motion=False)
+
+    def _reset_circles(self):
+        """Reset all circles to random positions with targets visible."""
         for c in self.circles:
             c.selected = False
             c.moving = False
+            c.reset_position()
             c.show_target()
 
-        # Phase 1: show targets for 2 seconds (STABLE)
-        start = pygame.time.get_ticks()
-        while pygame.time.get_ticks() - start < 2000:
-            self._update_screen(update_motion=False)
+    def _blink_targets(self):
+        """Blink targets to signal upcoming movement."""
+        blink_count = self.cfg.get('blink_count', 3)
+        blink_interval = self.cfg.get('blink_interval', 200)
+        for _ in range(blink_count):
+            for c in self.circles:
+                c.hide_target()
+            self._wait(blink_interval)
+            for c in self.circles:
+                c.show_target()
+            self._wait(blink_interval)
 
-        # Immediately hide targets AND start movement
+    def _start_tracking(self):
+        """Hide targets and start movement for tracking phase."""
         for c in self.circles:
             c.hide_target()
             c.moving = True
-
-        # Phase 2: tracking phase (MOVING)
+        tracking_time = self.cfg['trial_time'] * 1000
         start = pygame.time.get_ticks()
-        while pygame.time.get_ticks() - start < self.config["trial_time"] * 1000:
+        while pygame.time.get_ticks() - start < tracking_time:
             self._update_screen(update_motion=True)
-
-        # Freeze for selection phase (recommended)
         for c in self.circles:
             c.moving = False
 
-        # Phase 3: selection phase
+    def _selection_phase(self):
+        """Handle user selection of targets. Returns list of selected circles."""
         selected = []
-        while len(selected) < 3:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    pygame.quit()
-                    return None
-
+        while len(selected) < self.cfg['num_targets']:
+            events = pygame.event.get()
+            if check_quit(events):
+                return None
+            for event in events:
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     for c in self.circles:
                         if c.rect.collidepoint(event.pos) and c not in selected:
                             c.select()
                             selected.append(c)
-
             self._draw()
             self.clock.tick(60)
+        return selected
 
+    def single_trial(self):
+        self._show_fixation()
+        self._reset_circles()
+        self._wait(self.cfg.get('target_display_time', 2000))
+        self._blink_targets()
+        self._start_tracking()
+        selected = self._selection_phase()
+        if selected is None:
+            return None
+        self._wait(self.cfg.get('post_trial_pause', 1500))
         return sum(c.is_target for c in selected)
 
     def execute(self):
         results = []
 
-        for trial in range(1, self.config["n_trials"] + 1):
+        for trial in range(1, self.cfg['total_trials'] + 1):
             correct = self.single_trial()
+            if correct is None:
+                break
             results.append((trial, correct))
 
-        # SAVE RESULTS
-        out = self.config.get("output_file", "mot_results.csv")
-        Path(out).parent.mkdir(parents=True, exist_ok=True)
-
-        with open(out, "w", newline="") as f:
-            w = csv.writer(f)
-            w.writerow(["trial", "num_correct_out_of_3"])
-            w.writerows(results)
+        save_results(
+            self.cfg.get('output_file', 'mot_results.csv'),
+            ['trial', 'num_correct'],
+            results,
+        )
 
         return results

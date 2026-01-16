@@ -1,31 +1,31 @@
-colors:
-  white: [255, 255, 255]
-  black: [0, 0, 0]
-  gray: [120, 120, 120]
-
 vs:
   width: 800
   height: 600
+  fullscreen: false
   rows: 4
   cols: 4
-  iti_time: 1 # (s)
-  total_trials: 5
-  fixation_time: 600
-  isi_time: 600
+  total_trials: 2
+  fixation_time: 600 # (ms)
+  post_trial_pause: 2000 # (ms)
   response_timeout: 3 # (s)
   angles: [0, 90, 180, 270]
-  save_path: 'vs_results.csv'
+  output_file: 'vs_results.csv'
+  background_color: [120, 120, 120] # gray
+  fixation_color: [0, 0, 0] # black
 
 mot:
   width: 800
   height: 600
-  num_objects: 10
+  fullscreen: false
+  num_objects: 15
   num_targets: 3
   radius: 20
-  n_trials: 2
-  speed: 2.0
-  speed_step: 0.25
-  highlight_time: 2.0
-  trial_time: 6.0
+  total_trials: 2
+  speed: 4.0
+  fixation_time: 1000 # (ms)
+  target_display_time: 2000 # (ms)
+  trial_time: 6.0 # (s)
+  post_trial_pause: 2000 # (ms)
   output_file: 'mot_results.csv'
-  random_seed: 42
+  background_color: [120, 120, 120] # gray
+  fixation_color: [0, 0, 0] # black

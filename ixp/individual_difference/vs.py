@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import csv
 import random
 import time
 from pathlib import Path
 
 import pygame
 
+from ixp.individual_difference.utils import check_quit, create_window, parse_color, save_results, show_fixation
 from ixp.task import GeneralTask
 
 MODULE_DIR = Path(__file__).parent
@@ -15,21 +15,21 @@ ARROW_KEYS = {pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT}
 KEY_TO_NAME = {pygame.K_UP: 'up', pygame.K_DOWN: 'down', pygame.K_LEFT: 'left', pygame.K_RIGHT: 'right'}
 ANGLE_TO_NAME = {0: 'up', 90: 'left', 180: 'down', 270: 'right'}
 
-GRAY = (120, 120, 120)
-BLACK = (0, 0, 0)
-
 
 class VS(GeneralTask):
     """Visual Search task: find the T among L distractors."""
 
     def __init__(self, config: dict):
         super().__init__(config)
-        pygame.init()
 
         self.cfg = config
-        self.window = pygame.display.set_mode((config['width'], config['height']))
+        self.window = create_window(config)
+        pygame.display.set_caption('Visual Search')
         self.font = pygame.font.Font(None, 80)
         self.images = self._load_images()
+
+        self.background_color = parse_color(config, 'background_color', [120, 120, 120])
+        self.fixation_color = parse_color(config, 'fixation_color', [0, 0, 0])
 
     def _load_images(self) -> dict:
         size = self.cfg.get('stimulus_size', 60)
@@ -41,14 +41,15 @@ class VS(GeneralTask):
         return images
 
     def _show_fixation(self) -> None:
-        self.window.fill(GRAY)
-        text = self.font.render('+', True, BLACK)
-        self.window.blit(text, text.get_rect(center=self.window.get_rect().center))
-        pygame.display.flip()
-        pygame.time.delay(self.cfg.get('fixation_time', 2000))
+        show_fixation(
+            self.window,
+            self.background_color,
+            self.fixation_color,
+            self.cfg.get('fixation_time', 2000),
+        )
 
     def _show_stimuli(self) -> int:
-        self.window.fill(GRAY)
+        self.window.fill(self.background_color)
 
         rows = self.cfg['rows']
         cols = self.cfg['cols']
@@ -85,22 +86,16 @@ class VS(GeneralTask):
         start = time.time()
 
         while time.time() - start <= timeout:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    return None
+            events = pygame.event.get()
+            if check_quit(events):
+                return None
+            for event in events:
                 if event.type == pygame.KEYDOWN and event.key in ARROW_KEYS:
                     response = KEY_TO_NAME[event.key]
                     reaction_time = time.time() - start
                     return response, correct_answer, reaction_time
 
         return 'timeout', correct_answer, timeout
-
-    def _save_results(self, results: list) -> None:
-        with open(self.cfg['save_path'], 'w', newline='') as file:
-            writer = csv.writer(file)
-            writer.writerow(['trial', 'response', 'correct_answer', 'rt'])
-            for trial_num, (response, correct_answer, rt) in enumerate(results, 1):
-                writer.writerow([trial_num, response, correct_answer, rt])
 
     def execute(self) -> list:
         results = []
@@ -114,7 +109,11 @@ class VS(GeneralTask):
                 break
 
             results.append(result)
-            pygame.time.delay(self.cfg.get('iti_time', 1000))
+            pygame.time.delay(self.cfg.get('post_trial_pause', 1000))
 
-        self._save_results(results)
+        save_results(
+            self.cfg.get('output_file', 'vs_results.csv'),
+            ['trial', 'response', 'correct_answer', 'rt'],
+            [(i + 1, *r) for i, r in enumerate(results)],
+        )
         return results
