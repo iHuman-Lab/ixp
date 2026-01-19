@@ -1,19 +1,31 @@
 [tool.poetry]
 name = "ixp"
 version = "0.1.0"
-description = ""
+description = "A Python package for running behavioral experiments at iHuman Lab"
 authors = [
-    "Your name (or your organization/company/team) <ihuman.research.lab@gmail.com>",
+    "iHuman Lab <ihuman.research.lab@gmail.com>",
 ]
 readme = "README.md"
+license = "MIT"
+repository = "https://github.com/elaheoveisi/ixp"
+keywords = ["experiments", "behavioral", "psychology", "eye-tracking", "lsl"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "Programming Language :: Python :: 3.11",
+]
 packages = [{ include = "ixp" }]
 
 [tool.poetry.dependencies]
+python = "^3.11"
 beartype = "^0.18.5"
 icontract = "^2.7.1"
 loguru = "^0.7.2"
 pydantic = "^2.9"
-python = "^3.11"
+ray = "^2.9"
+pygame = "^2.5"
+pylsl = "^1.16"
 
 
 [tool.poetry.group.test.dependencies]
