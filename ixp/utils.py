@@ -1,9 +1,8 @@
-# utils.py
-from contextlib import contextmanager
+# Type validation utility
+from __future__ import annotations
 
-@contextmanager
-def skip_run(mode, name):
-    if mode == "run":
-        yield lambda: True
-    else:
-        yield lambda: False
+
+def validate(instance: object, base_types: tuple[type, ...]):
+    if not issubclass(instance, base_types):
+        msg = f'{instance} must be a subclass of {base_types}'
+        raise TypeError(msg)
