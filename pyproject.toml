@@ -21,7 +21,6 @@ packages = [{ include = "ixp" }]
 python = "^3.11"
 beartype = "^0.18.5"
 icontract = "^2.7.1"
-loguru = "^0.7.2"
 pydantic = "^2.9"
 ray = "^2.9"
 pygame = "^2.5"
@@ -39,31 +38,6 @@ isort = "^5.13.2"
 pre-commit = "^3.8.0"
 ruff = "^0.6.7"
 
-
-[tool.pytest.ini_options]
-minversion = "7.3"
-addopts = [
-    "-ra",
-    "-vvv",
-    "-l",
-    "--doctest-modules",
-    "--color=yes",
-    "--code-highlight=yes",
-    # coverage makes the pycharm debugger not work
-    #    "--cov",
-    #    "--cov-branch",
-    #    "--cov-fail-under=100",
-    #    "--no-cov-on-fail",
-    "--log-disable=faker",
-    "--log-disable=asyncio",
-]
-
-testpaths = [".", "tests"]
-doctest_optionflags = ["NORMALIZE_WHITESPACE", "ELLIPSIS"]
-python_functions = ["it_*", "test_*"]
-log_cli = true
-log_cli_level = "WARNING"
-log_auto_indent = true
 
 # [tool.black]
 # line-length = 120

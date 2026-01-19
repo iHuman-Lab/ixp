@@ -1,21 +1,28 @@
 from __future__ import annotations
 
-import logging
-from typing import Any, dict, tuple
+from typing import Any
 
 import tobii_research as tobii
 from psychopy import monitors, visual
 
+from ixp.sensors.base_sensor import Sensor
 
-class TobiiEyeTracker:
+
+class TobiiEyeTracker(Sensor):
     """
     Interface for Tobii eye tracking devices.
 
     Parameters
     ----------
-    serial_string : str, optional
-        Serial number of the specific eyetracker to connect to.
-        If None, connects to the first available tracker.
+    config : dict[str, Any]
+        Configuration dictionary containing:
+        - name: Stream name (default: 'TobiiEyeTracker')
+        - type: Stream type (default: 'Gaze')
+        - channel_count: Number of channels (default: 6)
+        - nominal_srate: Sampling rate (default: 60)
+        - channel_format: Data format (default: 'float32')
+        - source_id: Unique source identifier
+        - serial_string: Serial number of specific tracker (optional)
 
     Attributes
     ----------
@@ -28,7 +35,20 @@ class TobiiEyeTracker:
 
     """
 
-    def __init__(self, serial_string: str | None = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
+        default_config = {
+            'name': 'TobiiEyeTracker',
+            'type': 'Gaze',
+            'channel_count': 6,  # left_x, left_y, left_z, right_x, right_y, right_z
+            'nominal_srate': 60,
+            'channel_format': 'float32',
+            'source_id': 'tobii_eye_tracker',
+        }
+        if config:
+            default_config.update(config)
+
+        super().__init__(default_config)
+
         self.eyetracker = None
         self.tracking = False
         self.gaze_data: dict[str, Any] = {}
@@ -38,8 +58,63 @@ class TobiiEyeTracker:
         self.display_area: dict[str, tuple[float, float]] = {}
         self.trackbox: dict[str, tuple[float, float]] = {}
 
-        if serial_string:
-            self.connect_to_tracker(serial_string)
+    def initialize(self) -> None:
+        """
+        Initialize and connect to the Tobii eye tracker.
+
+        This method is called by RemoteSensor after instantiation.
+        """
+        serial_string = self.config.get('serial_string')
+        self.connect_to_tracker(serial_string)
+        self.start_tracking()
+
+    def get_data_signature(self) -> dict[str, Any]:
+        """
+        Return the data signature for the Tobii eye tracker.
+
+        Returns
+        -------
+        dict[str, Any]
+            Dictionary describing the data channels and their types
+
+        """
+        return {
+            'channels': [
+                'left_gaze_x',
+                'left_gaze_y',
+                'left_gaze_z',
+                'right_gaze_x',
+                'right_gaze_y',
+                'right_gaze_z',
+            ],
+            'units': 'normalized',
+            'coordinate_system': 'tobii_display_area',
+        }
+
+    def read_data(self) -> list[float] | None:
+        """
+        Read current gaze data from the tracker.
+
+        Returns
+        -------
+        list[float] or None
+            List of gaze coordinates [left_x, left_y, left_z, right_x, right_y, right_z]
+            or None if no data available
+
+        """
+        if not self.gaze_data:
+            return None
+
+        left = self.gaze_data.get('left_gaze_point_3d', (0.0, 0.0, 0.0))
+        right = self.gaze_data.get('right_gaze_point_3d', (0.0, 0.0, 0.0))
+
+        # Handle None values
+        if left is None:
+            left = (0.0, 0.0, 0.0)
+        if right is None:
+            right = (0.0, 0.0, 0.0)
+
+        return [left[0], left[1], left[2], right[0], right[1], right[2]]
 
     def connect_to_tracker(self, serial_string: str | None = None) -> None:
         """
@@ -72,7 +147,7 @@ class TobiiEyeTracker:
         try:
             self.eyetracker = tobii.EyeTracker(selected_tracker.address)
             log_msg = f'Connected to {selected_tracker.device_name} (Model: {selected_tracker.model}, S/N: {selected_tracker.serial_number})'
-            logging.info(log_msg)
+            self.logger.info(log_msg)
         except ConnectionError as e:
             msg = f'Failed to connect: {e}'
             raise ConnectionError(msg) from e
@@ -154,7 +229,7 @@ class TobiiEyeTracker:
 
         self._monitor = monitor
         log_msg = f'Monitor "{monitor_name}" configured: {dimensions!s}'
-        logging.info(log_msg)
+        self.logger.info(log_msg)
 
     def _gaze_callback(self, gaze_data: dict[str, Any]) -> None:
         """Store received gaze data."""
@@ -176,7 +251,7 @@ class TobiiEyeTracker:
 
         self.eyetracker.subscribe_to(tobii.EYETRACKER_GAZE_DATA, self._gaze_callback, as_dictionary=True)
         self.tracking = True
-        logging.info('Gaze tracking started')
+        self.logger.info('Gaze tracking started')
 
     def stop_tracking(self) -> None:
         """
@@ -194,7 +269,7 @@ class TobiiEyeTracker:
 
         self.eyetracker.unsubscribe_from(tobii.EYETRACKER_GAZE_DATA, self._gaze_callback)
         self.tracking = False
-        logging.info('Gaze tracking stopped')
+        self.logger.info('Gaze tracking stopped')
 
     def get_current_gaze(self) -> dict[str, Any] | None:
         """
