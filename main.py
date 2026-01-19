@@ -5,12 +5,12 @@ from pathlib import Path
 import ray
 import yaml
 
+from ixp.experiment import Experiment
 from ixp.individual_difference import MOT, VS
-from ixp.runner import ExperimentRunner
 from tests.examples import ExampleSensor, ExampleTask
 from utils import skip_run
 
-with Path.open('ixp/configs/config.yaml') as f:
+with Path('ixp/configs/config.yaml').open() as f:
     config = yaml.safe_load(f)
 
 with skip_run('skip', 'test_features') as check, check():
@@ -20,8 +20,8 @@ with skip_run('skip', 'test_features') as check, check():
     # Experiment configuration
     config = {'run_practice': False}
 
-    # Create an instance of ExperimentRunner
-    runner = ExperimentRunner(config)
+    # Create an instance of Experiment
+    experiment = Experiment(config)
 
     # Sensors
     sensor_config = {
@@ -33,32 +33,34 @@ with skip_run('skip', 'test_features') as check, check():
         'channel_count': 1,
     }
     temperature_sensor = ExampleSensor(sensor_config)
-    runner.register_sensor(name='temperature_sensor', sensor=temperature_sensor)
+    experiment.register_sensor(name='temperature_sensor', sensor=temperature_sensor)
 
     # Example task
     practice_task = ExampleTask({'name': '2'})
     # Register a practice task
-    runner.add_task(name='practice_1', task=practice_task, order=1, is_practice=True)
+    experiment.add_task(name='practice_1', task=practice_task, order=1, is_practice=True)
 
     # Register a main task
     main_task = ExampleTask({'name': '1'})
-    runner.add_task(name='main_1', task=main_task, order=2)
+    experiment.add_task(name='main_1', task=main_task, order=2)
 
     # Run the experiment
-    runner.run()
+    experiment.run()
 
     # Clean up
-    runner.close()
+    experiment.close()
 
 
 with skip_run('run', 'multi_object_tracking') as check, check():
-    ray.init(ignore_reinit_error=True)
+    ray.init(ignore_reinit_error=True, _system_config={'metrics_report_interval_ms': 0})
 
-    # Create an instance of ExperimentRunner
-    runner = ExperimentRunner(config)
+    # Create an instance of Experiment
+    experiment = Experiment(config)
     # Register a practice task
-    runner.add_task(name='multi_object_tracking', task_cls=MOT, task_config={'config': config['mot']}, order=1)
-    runner.add_task(name='visual_search', task_cls=VS, task_config={'config': config['vs']}, order=2)
+    experiment.add_task(name='multi_object_tracking', task_cls=MOT, task_config={'config': config['mot']}, order=1)
+    experiment.add_task(name='visual_search', task_cls=VS, task_config={'config': config['vs']}, order=2)
 
     # Run the experiment
-    runner.run()
+    experiment.run()
+
+    experiment.close()

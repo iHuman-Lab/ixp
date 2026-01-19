@@ -25,6 +25,7 @@ class TobiiEyeTracker:
         Current tracking status
     gaze_data : dict
         Latest gaze data from the tracker
+
     """
 
     def __init__(self, serial_string: str | None = None) -> None:
@@ -55,6 +56,7 @@ class TobiiEyeTracker:
             If no eye trackers are found
         ConnectionError
             If connection to the tracker fails
+
         """
         trackers = tobii.find_all_eyetrackers()
         if not trackers:
@@ -83,6 +85,7 @@ class TobiiEyeTracker:
         ------
         ValueError
             If eye tracker is not connected
+
         """
         if not self.eyetracker:
             msg = 'Eye tracker not connected'
@@ -128,6 +131,7 @@ class TobiiEyeTracker:
             If no monitors are found
         TypeError
             If dimensions are not a tuple
+
         """
         available_monitors = monitors.getAllMonitors()
         if not available_monitors:
@@ -164,6 +168,7 @@ class TobiiEyeTracker:
         ------
         ValueError
             If eye tracker is not connected
+
         """
         if not self.eyetracker:
             msg = 'Eye tracker not connected'
@@ -181,6 +186,7 @@ class TobiiEyeTracker:
         ------
         ValueError
             If eye tracker is not connected
+
         """
         if not self.eyetracker:
             msg = 'Eye tracker not connected'
@@ -199,6 +205,7 @@ class TobiiEyeTracker:
         dict or None
             Dictionary containing gaze data for both eyes and gaze position,
             or None if no data available
+
         """
         if not self.gaze_data:
             return None
