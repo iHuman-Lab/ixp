@@ -7,6 +7,8 @@ from typing import Any
 
 from pylsl import StreamInfo, StreamOutlet
 
+from .utils import StreamGuard
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,6 +37,12 @@ class Trial(ABC):
         self.parameters = parameters
 
     @abstractmethod
+    def initialize(self) -> Any:
+        """
+        Initialize the trial
+        """
+
+    @abstractmethod
     def execute(self) -> Any:
         """
         Run the trial logic.
@@ -47,6 +55,12 @@ class Trial(ABC):
         Any
             Trial result data (e.g., response, reaction time, score).
 
+        """
+
+    @abstractmethod
+    def clean_up(self) -> Any:
+        """
+        Clean up after the trial
         """
 
 
@@ -82,6 +96,7 @@ class LSLTrial(ABC):
         self.parameters = parameters
         self.lsl_stream: StreamOutlet | None = None
         self._has_streamed: bool = False
+        self._samples_pushed: int = 0
 
     def create_lsl_stream(self):
         """
@@ -115,26 +130,25 @@ class LSLTrial(ABC):
 
         """
         if self.lsl_stream is None:
-            msg = 'LSL stream not created. Call create_lsl_stream() first.'
+            msg = 'LSL stream not created. Call create_lsl_stream() before stream().'
             raise RuntimeError(msg)
+
+        self._stream_called = True
 
         data = self.read_data()
         if data is not None:
             self.lsl_stream.push_sample(data)
-            self._has_streamed = True
+            self._samples_pushed += 1
+
+    @property
+    def stream_was_called(self) -> bool:
+        """True if stream() was called at least once."""
+        return self._stream_called
 
     @property
     def has_streamed(self) -> bool:
-        """
-        Check whether stream() was called with valid data at least once.
-
-        Returns
-        -------
-        bool
-            True if data was streamed at least once, False otherwise.
-
-        """
-        return self._has_streamed
+        """True if at least one sample was pushed to LSL."""
+        return self._samples_pushed > 0
 
     @abstractmethod
     def get_data_signature(self) -> dict[str, Any]:
@@ -263,15 +277,13 @@ class Block:
             random.shuffle(trials_list)
 
         for trial in trials_list:
-            trial.execute()
-
-            # Verify streaming for LSLTrial
-            if isinstance(trial, LSLTrial) and not trial.has_streamed:
-                msg = (
-                    f'LSLTrial {trial.trial_id}: stream() was never called during execute(). '
-                    'You must call self.stream() in your execution loop.'
-                )
-                raise RuntimeError(msg)
+            trial.initialize()
+            if isinstance(trial, LSLTrial):
+                with StreamGuard(trial):
+                    trial.execute()
+            else:
+                trial.execute()
+            trial.clean_up()
 
 
 class Task(ABC):
@@ -342,8 +354,3 @@ class Task(ABC):
         else:
             msg = 'execute() must be implemented in subclass for tasks without blocks'
             raise NotImplementedError(msg)
-
-
-# Backwards compatibility aliases
-GeneralTask = Task
-LSLTask = Task

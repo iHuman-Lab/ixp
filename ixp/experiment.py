@@ -155,7 +155,7 @@ class Experiment:
         task_cls: type,
         task_config: dict[str, Any],
         order: int = 0,
-        is_practice: bool = False,  # noqa: FBT001
+        is_practice: bool = False,  # noqa: FBT001, FBT002
     ) -> None:
         """
         Register a task with the experiment.

@@ -41,17 +41,17 @@ class VSTrial(Trial):
 
     """
 
-    def __init__(self, trial_id: str, parameters: dict[str, Any], window: pygame.Surface):
+    def __init__(self, trial_id: str, parameters: dict[str, Any]):
         super().__init__(trial_id, parameters)
         self.cfg = parameters
-        self.window = window
-        self.font = pygame.font.Font(None, 80)
-        self.images = self._load_images()
+
         self.background_color = parse_color(self.cfg, 'background_color', [120, 120, 120])
         self.fixation_color = parse_color(self.cfg, 'fixation_color', [0, 0, 0])
 
     def _load_images(self) -> dict[str, pygame.Surface]:
-        size = self.cfg.get('stimulus_size', 60)
+        screen_h = self.window.get_height()
+        scale_factor = self.cfg.get('stimulus_scale', 0.10)
+        size = int(screen_h * scale_factor)
         images = {}
         for name in ['T', 'L1', 'L2']:
             path = MODULE_DIR / f'{name}.png'
@@ -72,10 +72,11 @@ class VSTrial(Trial):
 
         rows = self.cfg['rows']
         cols = self.cfg['cols']
-        padding = self.cfg.get('padding', 50)
         angles = self.cfg['angles']
 
         width, height = self.window.get_size()
+        padding_scale = self.cfg.get('padding_scale', 0.05)
+        padding = int(height * padding_scale)
         cell_width = (width - 2 * padding) // cols
         cell_height = (height - 2 * padding) // rows
 
@@ -116,6 +117,11 @@ class VSTrial(Trial):
 
         return 'timeout', correct_answer, timeout
 
+    def initialize(self):
+        self.window = self.cfg['_window']
+        self.images = self._load_images()
+        self.font = pygame.font.Font(None, 80)
+
     def execute(self):
         self._show_fixation()
         target_angle = self._show_stimuli()
@@ -123,6 +129,9 @@ class VSTrial(Trial):
         if result is None:
             return None
         return result
+
+    def clean_up(self):
+        pass
 
 
 class VS(Task):
@@ -148,17 +157,18 @@ class VS(Task):
 
     def __init__(self, config: dict[str, Any]):
         super().__init__(config)
-        self.window = create_window(config)
         block = Block('vs_block')
 
         for trial_idx in range(config['total_trials']):
-            trial = VSTrial(trial_id=f'trial_{trial_idx}', parameters=config, window=self.window)
+            trial = VSTrial(trial_id=f'trial_{trial_idx}', parameters=config)
             block.add_trial(trial, order=trial_idx)
 
         self.add_block(block)
 
     def execute(self, order: str = 'predefined'):
-        self.initial_setup()
-
-        for block in self.blocks:
-            block.execute(order)
+        self.config['_window'] = create_window(self.config)
+        try:
+            for block in self.blocks:
+                block.execute(order)
+        finally:
+            pygame.quit()

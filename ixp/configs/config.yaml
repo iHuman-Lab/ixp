@@ -1,7 +1,7 @@
 vs:
   width: 800
   height: 600
-  fullscreen: false
+  fullscreen: true
   rows: 4
   cols: 4
   total_trials: 2
@@ -16,7 +16,7 @@ vs:
 mot:
   width: 800
   height: 600
-  fullscreen: false
+  fullscreen: true
   num_objects: 15
   num_targets: 3
   radius: 20

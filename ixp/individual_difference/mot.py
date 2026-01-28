@@ -7,8 +7,10 @@ from typing import Any
 
 import pygame
 
-from ixp.individual_difference.utils import check_quit, create_window, show_fixation
+from ixp.individual_difference.utils import check_quit, show_fixation
 from ixp.task import Block, Task, Trial
+
+from .utils import create_window
 
 
 class Circle(pygame.sprite.Sprite):
@@ -126,24 +128,27 @@ class MOTTrial(Trial):
 
     """
 
-    def __init__(self, trial_id: str, parameters: dict[str, Any], window: pygame.Surface):
+    def __init__(self, trial_id: str, parameters: dict[str, Any]):
         super().__init__(trial_id, parameters)
         self.cfg = parameters
-        self.window = window
-        self.clock = pygame.time.Clock()
+
         self.background_color = self.cfg.get('background_color', [120, 120, 120])
         self.fixation_color = self.cfg.get('fixation_color', [0, 0, 0])
         self.target_ids = set(random.sample(range(self.cfg['num_objects']), self.cfg['num_targets']))
         self.circles = pygame.sprite.Group()
-        self._create_circles()
 
     def _create_circles(self):
+        screen_h = self.window.get_height()
+        radius_scale = self.cfg.get('radius_scale', 0.03)
+        speed_scale = self.cfg.get('speed_scale', 0.005)
+        radius = int(screen_h * radius_scale)
+        speed = screen_h * speed_scale
         for i in range(self.cfg['num_objects']):
             self.circles.add(
                 Circle(
                     is_target=(i in self.target_ids),
-                    speed=self.cfg['speed'],
-                    radius=self.cfg['radius'],
+                    speed=speed,
+                    radius=radius,
                     width=self.window.get_width(),
                     height=self.window.get_height(),
                 )
@@ -195,18 +200,25 @@ class MOTTrial(Trial):
 
     def _selection_phase(self):
         selected = []
+        offset = self.window.get_abs_offset()
         while len(selected) < self.cfg['num_targets']:
             events = pygame.event.get()
             if check_quit(events):
                 return None
             for event in events:
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    pos = (event.pos[0] - offset[0], event.pos[1] - offset[1])
                     for c in self.circles:
-                        if c.rect.collidepoint(event.pos) and c not in selected:
+                        if c.rect.collidepoint(pos) and c not in selected:
                             c.select()
                             selected.append(c)
             self._update_screen(update_motion=False)
         return selected
+
+    def initialize(self):
+        self.window = self.cfg['_window']
+        self._create_circles()
+        self.clock = pygame.time.Clock()
 
     def execute(self):
         # Show fixation
@@ -232,6 +244,9 @@ class MOTTrial(Trial):
 
         # Return number of correctly selected targets
         return sum(c.is_target for c in selected)
+
+    def clean_up(self):
+        self.circles.empty()
 
 
 class MOT(Task):
@@ -259,16 +274,18 @@ class MOT(Task):
 
     def __init__(self, config: dict[str, Any]):
         super().__init__(config)
-        self.window = create_window(config)
         block = Block('mot_block')
 
         for trial_idx in range(config['total_trials']):
-            trial = MOTTrial(trial_id=f'trial_{trial_idx}', parameters=config, window=self.window)
+            trial = MOTTrial(trial_id=f'trial_{trial_idx}', parameters=config)
             block.add_trial(trial, order=trial_idx)
 
         self.add_block(block)
 
     def execute(self, order: str = 'predefined'):
-        if self.blocks:
+        self.config['_window'] = create_window(self.config)
+        try:
             for block in self.blocks:
                 block.execute(order)
+        finally:
+            pygame.quit()

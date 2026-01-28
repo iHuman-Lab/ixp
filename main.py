@@ -57,8 +57,8 @@ with skip_run('run', 'multi_object_tracking') as check, check():
     # Create an instance of Experiment
     experiment = Experiment(config)
     # Register a practice task
-    experiment.add_task(name='multi_object_tracking', task_cls=MOT, task_config={'config': config['mot']}, order=1)
-    experiment.add_task(name='visual_search', task_cls=VS, task_config={'config': config['vs']}, order=2)
+    experiment.add_task(name='multi_object_tracking', task_cls=MOT, task_config={'config': config['mot']}, order=2)
+    experiment.add_task(name='visual_search', task_cls=VS, task_config={'config': config['vs']}, order=1)
 
     # Run the experiment
     experiment.run()

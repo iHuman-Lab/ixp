@@ -27,7 +27,11 @@ def create_window(config: dict) -> pygame.Surface:
     pygame.init()
 
     if config.get('fullscreen', False):
-        window = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+        screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+        screen.fill((0, 0, 0))
+        screen_w, screen_h = screen.get_size()
+        x = (screen_w - screen_h) // 2
+        window = screen.subsurface((x, 0, screen_h, screen_h))
     else:
         width = config['width']
         height = config['height']
