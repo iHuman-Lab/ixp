@@ -8,10 +8,40 @@ from typing import Any
 import pygame
 
 from ixp.individual_difference.utils import check_quit, create_window, show_fixation
-from ixp.task import Block, GeneralTask, Trial
+from ixp.task import Block, Task, Trial
 
 
 class Circle(pygame.sprite.Sprite):
+    """
+    A moving circle sprite for the MOT task.
+
+    Represents either a target or distractor circle that moves within
+    the window bounds and bounces off edges.
+
+    Parameters
+    ----------
+    is_target : bool
+        Whether this circle is a target to track.
+    speed : float
+        Movement speed in pixels per frame.
+    radius : int
+        Circle radius in pixels.
+    width : int
+        Window width for boundary collision.
+    height : int
+        Window height for boundary collision.
+
+    Attributes
+    ----------
+    DEFAULT_COLOR : tuple
+        RGB color for distractor circles.
+    TARGET_COLOR : tuple
+        RGB color for target circles.
+    SELECTED_COLOR : tuple
+        RGB color for selected circles.
+
+    """
+
     DEFAULT_COLOR = (255, 255, 255)
     TARGET_COLOR = (0, 0, 0)
     SELECTED_COLOR = (0, 0, 0)
@@ -79,6 +109,23 @@ class Circle(pygame.sprite.Sprite):
 
 
 class MOTTrial(Trial):
+    """
+    Multiple Object Tracking trial implementation.
+
+    Displays moving circles where participants track targets and select
+    them after the tracking phase ends.
+
+    Parameters
+    ----------
+    trial_id : str
+        Unique identifier for the trial.
+    parameters : dict[str, Any]
+        Configuration parameters including num_objects, num_targets, speed, etc.
+    window : pygame.Surface
+        The pygame window surface to render stimuli.
+
+    """
+
     def __init__(self, trial_id: str, parameters: dict[str, Any], window: pygame.Surface):
         super().__init__(trial_id, parameters)
         self.cfg = parameters
@@ -161,17 +208,6 @@ class MOTTrial(Trial):
             self._update_screen(update_motion=False)
         return selected
 
-    def get_data_signature(self):
-        # Save-only trial (no LSL)
-        return {
-            'name': 'MOTTrial',
-            'type': 'none',
-            'channel_count': 0,
-            'nominal_srate': 0,
-            'channel_format': 'string',
-            'source_id': f'MOT_{self.trial_id}',
-        }
-
     def execute(self):
         # Show fixation
         show_fixation(self.window, self.background_color, self.fixation_color, self.cfg.get('fixation_time', 1000))
@@ -198,7 +234,29 @@ class MOTTrial(Trial):
         return sum(c.is_target for c in selected)
 
 
-class MOT(GeneralTask):
+class MOT(Task):
+    """
+    Multiple Object Tracking task containing a block of MOTTrials.
+
+    Participants track a subset of moving circles and select them
+    after the tracking phase ends.
+
+    Parameters
+    ----------
+    config : dict[str, Any]
+        Configuration dictionary containing:
+
+        - total_trials : int - Number of trials
+        - num_objects : int - Total number of circles
+        - num_targets : int - Number of targets to track
+        - speed : float - Circle movement speed
+        - radius : int - Circle radius
+        - trial_time : float - Tracking phase duration in seconds
+        - width : int - Window width
+        - height : int - Window height
+
+    """
+
     def __init__(self, config: dict[str, Any]):
         super().__init__(config)
         self.window = create_window(config)

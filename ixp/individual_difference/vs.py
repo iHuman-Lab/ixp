@@ -14,7 +14,7 @@ from ixp.individual_difference.utils import (
     parse_color,
     show_fixation,
 )
-from ixp.task import Block, GeneralTask, Trial
+from ixp.task import Block, Task, Trial
 
 MODULE_DIR = Path(__file__).parent
 
@@ -24,6 +24,23 @@ ANGLE_TO_NAME = {0: 'up', 90: 'left', 180: 'down', 270: 'right'}
 
 
 class VSTrial(Trial):
+    """
+    Visual search trial implementation.
+
+    Displays a grid of T and L stimuli where the participant must identify
+    the orientation of the target T among L distractors.
+
+    Parameters
+    ----------
+    trial_id : str
+        Unique identifier for the trial.
+    parameters : dict[str, Any]
+        Configuration parameters including rows, cols, angles, etc.
+    window : pygame.Surface
+        The pygame window surface to render stimuli.
+
+    """
+
     def __init__(self, trial_id: str, parameters: dict[str, Any], window: pygame.Surface):
         super().__init__(trial_id, parameters)
         self.cfg = parameters
@@ -99,16 +116,6 @@ class VSTrial(Trial):
 
         return 'timeout', correct_answer, timeout
 
-    def get_data_signature(self):
-        return {
-            'name': 'VSTrial',
-            'type': 'none',
-            'channel_count': 0,
-            'nominal_srate': 0,
-            'channel_format': 'string',
-            'source_id': f'VS_{self.trial_id}',
-        }
-
     def execute(self):
         self._show_fixation()
         target_angle = self._show_stimuli()
@@ -118,8 +125,26 @@ class VSTrial(Trial):
         return result
 
 
-class VS(GeneralTask):
-    """GeneralTask containing a block of VSTrials"""
+class VS(Task):
+    """
+    Visual Search task containing a block of VSTrials.
+
+    Participants search for a target T among L distractors and indicate
+    the target's orientation using arrow keys.
+
+    Parameters
+    ----------
+    config : dict[str, Any]
+        Configuration dictionary containing:
+
+        - total_trials : int - Number of trials
+        - rows : int - Grid rows
+        - cols : int - Grid columns
+        - angles : list - Possible stimulus orientations
+        - width : int - Window width
+        - height : int - Window height
+
+    """
 
     def __init__(self, config: dict[str, Any]):
         super().__init__(config)

@@ -72,8 +72,6 @@ def calculate_trackbox_coordinate(point: tuple, valid: int) -> tuple:
         (x, y) coordinates of eye position.
     valid : int
         Validity flag for the eye position.
-    tb2psycho_norm_function : callable
-        Function to normalize trackbox coordinates.
 
     Returns
     -------
@@ -95,12 +93,11 @@ def get_trackbox_position(gaze_data: dict[str, Any]) -> tuple[tuple[float, float
     ----------
     gaze_data : dict
         Dictionary containing gaze tracking data with keys:
+
         - 'left_gaze_origin_in_trackbox_coordinate_system'
         - 'right_gaze_origin_in_trackbox_coordinate_system'
         - 'left_gaze_origin_validity'
         - 'right_gaze_origin_validity'
-    tb2psycho_norm_function : callable
-        Function to normalize trackbox coordinates.
 
     Returns
     -------

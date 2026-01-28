@@ -13,11 +13,15 @@ def create_window(config: dict) -> pygame.Surface:
 
     Supports fullscreen mode and centers the window on screen.
 
-    Args:
-        config: Dictionary with 'width', 'height', and optional 'fullscreen' keys.
+    Parameters
+    ----------
+    config : dict
+        Dictionary with 'width', 'height', and optional 'fullscreen' keys.
 
-    Returns:
-        pygame.Surface: The created window surface.
+    Returns
+    -------
+    pygame.Surface
+        The created window surface.
 
     """
     pygame.init()
@@ -50,12 +54,18 @@ def show_fixation(
     """
     Display a fixation cross on the screen.
 
-    Args:
-        window: The pygame window surface.
-        background_color: RGB tuple for background.
-        fixation_color: RGB tuple for the fixation cross.
-        duration_ms: How long to display the fixation in milliseconds.
-        font_size: Size of the fixation cross font.
+    Parameters
+    ----------
+    window : pygame.Surface
+        The pygame window surface.
+    background_color : tuple
+        RGB tuple for background.
+    fixation_color : tuple
+        RGB tuple for the fixation cross.
+    duration_ms : int
+        How long to display the fixation in milliseconds.
+    font_size : int, optional
+        Size of the fixation cross font. Default is 80.
 
     """
     window.fill(background_color)
@@ -70,10 +80,14 @@ def save_results(filepath: str, headers: list, rows: list) -> None:
     """
     Save results to a CSV file.
 
-    Args:
-        filepath: Path to the output CSV file.
-        headers: List of column headers.
-        rows: List of row data (each row is a tuple/list).
+    Parameters
+    ----------
+    filepath : str
+        Path to the output CSV file.
+    headers : list
+        List of column headers.
+    rows : list
+        List of row data (each row is a tuple/list).
 
     """
     out = Path(filepath)
@@ -88,12 +102,18 @@ def parse_color(config: dict, key: str, default: list) -> tuple:
     """
     Parse a color from config, converting list to tuple.
 
-    Args:
-        config: Configuration dictionary.
-        key: Key to look up in config.
-        default: Default RGB list if key not found.
+    Parameters
+    ----------
+    config : dict
+        Configuration dictionary.
+    key : str
+        Key to look up in config.
+    default : list
+        Default RGB list if key not found.
 
-    Returns:
+    Returns
+    -------
+    tuple
         RGB tuple.
 
     """
@@ -104,10 +124,14 @@ def check_quit(events: list | None = None) -> bool:
     """
     Check if user requested to quit.
 
-    Args:
-        events: Optional list of pygame events. If None, fetches events.
+    Parameters
+    ----------
+    events : list, optional
+        List of pygame events. If None, fetches events.
 
-    Returns:
+    Returns
+    -------
+    bool
         True if quit was requested, False otherwise.
 
     """

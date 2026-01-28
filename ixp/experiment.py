@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 import ray
 
-from .task import GeneralTask, LSLTask
+from .task import Task
 
 if TYPE_CHECKING:
     from .sensors.base_sensor import Sensor
@@ -27,6 +27,31 @@ class RemoteSensor:
     - Run the continuous read → stream loop
     - Annotate data with task context (via markers)
     - Remain independent of task logic
+
+    Parameters
+    ----------
+    name : str
+        Unique identifier for the sensor.
+    sensor_cls : type[Sensor]
+        The sensor class to instantiate.
+    sensor_config : dict[str, Any]
+        Configuration dictionary passed to the sensor constructor.
+    sample_interval : float, optional
+        Optional throttling interval in seconds between samples.
+
+    Attributes
+    ----------
+    name : str
+        Unique identifier for the sensor.
+    sensor : Sensor
+        The instantiated sensor instance.
+    recording : bool
+        Whether the sensor is currently recording.
+    current_task : str
+        Name of the current task context.
+    sample_interval : float or None
+        Throttling interval between samples.
+
     """
 
     def __init__(
@@ -48,7 +73,9 @@ class RemoteSensor:
     def start(self) -> None:
         """
         Start continuous sensor recording.
+
         This method is non-blocking when called via Ray.
+
         """
         logger.info(f'[Sensor] Starting {self.name}')
         self.recording = True
@@ -67,11 +94,22 @@ class RemoteSensor:
         logger.info(f'[Sensor] Stopped {self.name}')
 
     def stop(self) -> None:
-        """Stop sensor recording."""
+        """
+        Stop sensor recording.
+
+        """
         self.recording = False
 
     def set_task(self, task_name: str) -> None:
-        """Set the current task context for this sensor."""
+        """
+        Set the current task context for this sensor.
+
+        Parameters
+        ----------
+        task_name : str
+            Name of the current task.
+
+        """
         self.current_task = task_name
 
 
@@ -86,6 +124,23 @@ class Experiment:
     - Run tasks sequentially
     - Stop sensors cleanly
     - Own experiment-level configuration
+
+    Parameters
+    ----------
+    config : dict[str, Any]
+        Experiment-level configuration dictionary.
+
+    Attributes
+    ----------
+    config : dict[str, Any]
+        Experiment-level configuration dictionary.
+    tasks : list[tuple[str, ray.actor.ActorHandle]]
+        List of registered main tasks.
+    practice_tasks : list[tuple[str, ray.actor.ActorHandle]]
+        List of registered practice tasks.
+    sensors : dict[str, ray.actor.ActorHandle]
+        Dictionary of registered sensors.
+
     """
 
     def __init__(self, config: dict[str, Any]):
@@ -99,15 +154,33 @@ class Experiment:
         name: str,
         task_cls: type,
         task_config: dict[str, Any],
-        *,
         order: int = 0,
-        is_practice: bool = False,
+        is_practice: bool = False,  # noqa: FBT001
     ) -> None:
         """
         Register a task with the experiment.
+
+        Parameters
+        ----------
+        name : str
+            Unique name for the task.
+        task_cls : type
+            The task class to instantiate (must inherit from Task).
+        task_config : dict[str, Any]
+            Configuration dictionary passed to the task constructor.
+        order : int, optional
+            Execution order (lower values execute first). Default is 0.
+        is_practice : bool, optional
+            If True, registers as a practice task. Default is False.
+
+        Raises
+        ------
+        TypeError
+            If task_cls does not inherit from Task.
+
         """
-        if not issubclass(task_cls, (GeneralTask, LSLTask)):
-            msg = 'task_cls must inherit from GeneralTask or LSLTask'
+        if not issubclass(task_cls, Task):
+            msg = 'task_cls must inherit from Task'
             raise TypeError(msg)
 
         task_actor = ray.remote(task_cls).remote(**task_config)
@@ -122,11 +195,22 @@ class Experiment:
         name: str,
         sensor_cls: type,
         sensor_config: dict[str, Any],
-        *,
         sample_interval: float | None = None,
     ) -> None:
         """
         Register a sensor for the experiment.
+
+        Parameters
+        ----------
+        name : str
+            Unique name for the sensor.
+        sensor_cls : type
+            The sensor class to instantiate (must inherit from Sensor).
+        sensor_config : dict[str, Any]
+            Configuration dictionary passed to the sensor constructor.
+        sample_interval : float, optional
+            Optional throttling interval in seconds between samples.
+
         """
         self.sensors[name] = RemoteSensor.remote(
             name=name,
@@ -178,6 +262,14 @@ class Experiment:
     def _run_task(self, task_name: str, task_actor: ray.actor.ActorHandle) -> None:
         """
         Run a single task and synchronize sensors.
+
+        Parameters
+        ----------
+        task_name : str
+            Name of the task to run.
+        task_actor : ray.actor.ActorHandle
+            Ray actor handle for the task.
+
         """
         logger.info(f'Running task: {task_name}')
 
@@ -191,5 +283,6 @@ class Experiment:
     def close(self) -> None:
         """
         Shut down Ray.
+
         """
         ray.shutdown()

@@ -63,6 +63,7 @@ class TobiiEyeTracker(Sensor):
         Initialize and connect to the Tobii eye tracker.
 
         This method is called by RemoteSensor after instantiation.
+
         """
         serial_string = self.config.get('serial_string')
         self.connect_to_tracker(serial_string)
@@ -75,7 +76,7 @@ class TobiiEyeTracker(Sensor):
         Returns
         -------
         dict[str, Any]
-            Dictionary describing the data channels and their types
+            Dictionary describing the data channels and their types.
 
         """
         return {
@@ -99,7 +100,7 @@ class TobiiEyeTracker(Sensor):
         -------
         list[float] or None
             List of gaze coordinates [left_x, left_y, left_z, right_x, right_y, right_z]
-            or None if no data available
+            or None if no data available.
 
         """
         if not self.gaze_data:
@@ -232,7 +233,15 @@ class TobiiEyeTracker(Sensor):
         self.logger.info(log_msg)
 
     def _gaze_callback(self, gaze_data: dict[str, Any]) -> None:
-        """Store received gaze data."""
+        """
+        Store received gaze data.
+
+        Parameters
+        ----------
+        gaze_data : dict[str, Any]
+            Gaze data received from the tracker callback.
+
+        """
         self.gaze_data = gaze_data
 
     def start_tracking(self) -> None:
@@ -279,7 +288,7 @@ class TobiiEyeTracker(Sensor):
         -------
         dict or None
             Dictionary containing gaze data for both eyes and gaze position,
-            or None if no data available
+            or None if no data available.
 
         """
         if not self.gaze_data:
