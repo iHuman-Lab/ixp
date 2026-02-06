@@ -66,6 +66,13 @@ survey:
     - id: comments
       text: "Any additional comments? (press Enter to skip)"
       type: text
+  use_pygame: true
+  window:
+    width: 800
+    height: 600
+    fullscreen: false
+  background_color: [120, 120, 120]
+  text_color: [0, 0, 0]
 
 mot:
   width: 800

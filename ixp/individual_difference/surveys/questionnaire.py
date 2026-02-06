@@ -10,6 +10,7 @@ from typing import Any, Dict, List
 import yaml
 
 from ixp.task import GeneralTask
+from ixp.individual_difference.utils import create_window, parse_color, check_quit, show_fixation
 
 
 
@@ -27,6 +28,19 @@ def _load_questions_from_config() -> List[Dict[str, Any]]:
     except Exception:
         traceback.print_exc()
     return DEFAULT_QUESTIONS
+
+
+def _load_survey_config() -> Dict[str, Any]:
+    try:
+        base = Path(__file__).resolve().parents[2]
+        cfg_path = base / "configs" / "config.yaml"
+        if cfg_path.exists():
+            with cfg_path.open("r", encoding="utf-8") as f:
+                cfg = yaml.safe_load(f) or {}
+            return cfg.get("survey") or {}
+    except Exception:
+        traceback.print_exc()
+    return {}
 
 
 def _ask_single_question(question: Dict[str, Any]) -> Any:
@@ -93,7 +107,20 @@ class Questionnaire(GeneralTask):
 
     def run(self) -> Dict[str, Any]:
         try:
-            print("\n--- NASA-TLX Brief Questionnaire ---\n")
+            # Prefer pygame UI if configured and available
+            survey_cfg = _load_survey_config()
+            use_pygame = bool(survey_cfg.get("use_pygame", True))
+
+            if use_pygame:
+                try:
+                    return self._run_pygame(survey_cfg)
+                except Exception:
+                    # Fall back to console if pygame UI fails
+                    traceback.print_exc()
+                    print("Pygame UI failed; falling back to console.")
+
+            # Console fallback
+            print("\n--- NASA-TLX Brief Questionnaire (console) ---\n")
 
             if not sys.stdin or not sys.stdin.isatty():
                 print("Non-interactive environment detected: saving placeholder survey result.")
@@ -139,6 +166,129 @@ class Questionnaire(GeneralTask):
             fname = self._save_results(error=True)
             print(f"Survey saved to: {fname}")
             return self.results
+
+    def _run_pygame(self, survey_cfg: Dict[str, Any]) -> Dict[str, Any]:
+        # Window config
+        window_cfg = survey_cfg.get("window") or {"width": 800, "height": 600, "fullscreen": False}
+        # merge background/text color
+        bg = tuple(survey_cfg.get("background_color", [120, 120, 120]))
+        text_color = tuple(survey_cfg.get("text_color", [0, 0, 0]))
+
+        window = create_window(window_cfg)
+        pygame_font = None
+        try:
+            import pygame
+
+            pygame.display.set_caption("NASA-TLX Questionnaire")
+            pygame_font = pygame.font.Font(None, 28)
+        except Exception:
+            raise
+
+        # simple fixation before starting
+        show_fixation(window, bg, text_color, 500)
+
+        # Participant ID input via pygame
+        participant = self._pygame_text_input(window, pygame_font, bg, text_color, "Participant ID (optional): ")
+        self.results = {"timestamp": datetime.utcnow().isoformat(), "participant": participant, "answers": {}}
+
+        for q in self.questions:
+            qtype = q.get("type")
+            if qtype == "scale":
+                val = self._pygame_scale_input(window, pygame_font, bg, text_color, q)
+                self.results["answers"][q["id"]] = val
+            elif qtype == "text":
+                txt = self._pygame_text_input(window, pygame_font, bg, text_color, q.get("text"))
+                self.results["answers"][q["id"]] = txt
+            else:
+                # fallback to console for unsupported types
+                self.results["answers"][q["id"]] = None
+
+        fname = self._save_results()
+        return self.results
+
+    def _pygame_scale_input(self, window, font, bg, text_color, question: Dict[str, Any]) -> int:
+        import pygame
+
+        min_v = int(question.get("min", 0))
+        max_v = int(question.get("max", 20))
+        val = (min_v + max_v) // 2
+        prompt = question.get("text")
+
+        clock = pygame.time.Clock()
+        while True:
+            for event in pygame.event.get():
+                if check_quit([event]):
+                    raise SystemExit
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_LEFT:
+                        val = max(min_v, val - 1)
+                    elif event.key == pygame.K_RIGHT:
+                        val = min(max_v, val + 1)
+                    elif event.key == pygame.K_RETURN:
+                        return val
+            window.fill(bg)
+            # render prompt
+            lines = self._wrap_text(prompt, font, window.get_width() - 40)
+            y = 40
+            for line in lines:
+                txt_surf = font.render(line, True, text_color)
+                window.blit(txt_surf, (20, y))
+                y += txt_surf.get_height() + 4
+
+            # render current value
+            val_surf = font.render(f"Value: {val}  (Use ← → to change, Enter to confirm)", True, text_color)
+            window.blit(val_surf, (20, window.get_height() - 60))
+
+            pygame.display.flip()
+            clock.tick(30)
+
+    def _pygame_text_input(self, window, font, bg, text_color, prompt: str) -> str:
+        import pygame
+
+        text = ""
+        clock = pygame.time.Clock()
+        while True:
+            for event in pygame.event.get():
+                if check_quit([event]):
+                    raise SystemExit
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_RETURN:
+                        return text.strip()
+                    elif event.key == pygame.K_BACKSPACE:
+                        text = text[:-1]
+                    else:
+                        if event.unicode:
+                            text += event.unicode
+            window.fill(bg)
+            lines = self._wrap_text(prompt, font, window.get_width() - 40)
+            y = 40
+            for line in lines:
+                txt_surf = font.render(line, True, text_color)
+                window.blit(txt_surf, (20, y))
+                y += txt_surf.get_height() + 4
+
+            # render current entry
+            entry_surf = font.render(text or "(type and press Enter to confirm)", True, text_color)
+            window.blit(entry_surf, (20, window.get_height() - 60))
+
+            pygame.display.flip()
+            clock.tick(30)
+
+    def _wrap_text(self, text: str, font, max_width: int) -> List[str]:
+        words = text.split()
+        lines: List[str] = []
+        cur = ""
+        for w in words:
+            test = (cur + " " + w).strip()
+            if font.size(test)[0] <= max_width:
+                cur = test
+            else:
+                if cur:
+                    lines.append(cur)
+                cur = w
+        if cur:
+            lines.append(cur)
+        return lines
 
     def _save_results(self, non_interactive: bool = False, error: bool = False) -> Path:
         ts = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
