@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import yaml
+import pygame
 
 from ixp.task import GeneralTask
 from ixp.individual_difference.utils import create_window, parse_color, check_quit, show_fixation
@@ -204,7 +205,57 @@ class Questionnaire(GeneralTask):
                 self.results["answers"][q["id"]] = None
 
         fname = self._save_results()
+
+        try:
+            self._show_summary_pygame(window, pygame_font, bg, text_color)
+        finally:
+            try:
+                pygame.quit()
+            except Exception:
+                pass
+
         return self.results
+
+    def _show_summary_pygame(self, window, font, bg, text_color) -> None:
+        import pygame
+
+        # Prepare summary lines
+        lines: List[str] = []
+        total = 0
+        count = 0
+        for q in self.questions:
+            qid = q.get("id")
+            val = self.results.get("answers", {}).get(qid)
+            if q.get("type") == "scale" and isinstance(val, int):
+                total += val
+                count += 1
+            lines.append(f"{q.get('text')}: {val}")
+
+        if count > 0:
+            lines.append(f"\nTLX total (sum of {count} scales): {total}")
+
+        lines.append("\nPress any key or click to close.")
+
+        clock = pygame.time.Clock()
+        while True:
+            for event in pygame.event.get():
+                if check_quit([event]):
+                    return
+                if event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN:
+                    return
+
+            window.fill(bg)
+            y = 20
+            for line in lines:
+                wrapped = self._wrap_text(line, font, window.get_width() - 40)
+                for w in wrapped:
+                    surf = font.render(w, True, text_color)
+                    window.blit(surf, (20, y))
+                    y += surf.get_height() + 6
+                y += 6
+
+            pygame.display.flip()
+            clock.tick(30)
 
     def _pygame_scale_input(self, window, font, bg, text_color, question: Dict[str, Any]) -> int:
         import pygame
@@ -213,6 +264,7 @@ class Questionnaire(GeneralTask):
         max_v = int(question.get("max", 20))
         val = (min_v + max_v) // 2
         prompt = question.get("text")
+        numeric_buffer = ""
 
         clock = pygame.time.Clock()
         while True:
@@ -220,10 +272,33 @@ class Questionnaire(GeneralTask):
                 if check_quit([event]):
                     raise SystemExit
                 if event.type == pygame.KEYDOWN:
+                    # arrow keys adjust
                     if event.key == pygame.K_LEFT:
                         val = max(min_v, val - 1)
+                        numeric_buffer = str(val)
                     elif event.key == pygame.K_RIGHT:
                         val = min(max_v, val + 1)
+                        numeric_buffer = str(val)
+                    # digits: allow typing a number directly
+                    elif event.unicode.isdigit():
+                        numeric_buffer += event.unicode
+                        try:
+                            ival = int(numeric_buffer)
+                        except Exception:
+                            ival = val
+                        else:
+                            if ival < min_v:
+                                ival = min_v
+                            if ival > max_v:
+                                ival = max_v
+                            val = ival
+                    elif event.key == pygame.K_BACKSPACE:
+                        numeric_buffer = numeric_buffer[:-1]
+                        if numeric_buffer:
+                            try:
+                                val = int(numeric_buffer)
+                            except Exception:
+                                pass
                     elif event.key == pygame.K_RETURN:
                         return val
             window.fill(bg)
@@ -235,9 +310,23 @@ class Questionnaire(GeneralTask):
                 window.blit(txt_surf, (20, y))
                 y += txt_surf.get_height() + 4
 
-            # render current value
-            val_surf = font.render(f"Value: {val}  (Use ← → to change, Enter to confirm)", True, text_color)
-            window.blit(val_surf, (20, window.get_height() - 60))
+            # render instruction and labels
+            instr = f"Pick a number between {min_v} and {max_v}"
+            instr_surf = font.render(instr, True, text_color)
+            window.blit(instr_surf, (20, window.get_height() - 110))
+
+            labels = f"{min_v} = {question.get('left_label','Low')}    {max_v} = {question.get('right_label','High')}"
+            labels_surf = font.render(labels, True, text_color)
+            window.blit(labels_surf, (20, window.get_height() - 80))
+
+            # large current value in center
+            try:
+                large_font = pygame.font.Font(None, 96)
+            except Exception:
+                large_font = font
+            val_center = large_font.render(str(val), True, text_color)
+            vc_rect = val_center.get_rect(center=(window.get_width() // 2, window.get_height() // 2))
+            window.blit(val_center, vc_rect)
 
             pygame.display.flip()
             clock.tick(30)
