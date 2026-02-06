@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-02-06T23:16:34.980649",
+  "participant": "1",
+  "answers": {
+    "tlx_mental_demand": 6,
+    "tlx_physical_demand": 8,
+    "tlx_temporal_demand": 0,
+    "tlx_performance": 7,
+    "tlx_effort": 9,
+    "tlx_frustration": 9,
+    "comments": ""
+  }
+}

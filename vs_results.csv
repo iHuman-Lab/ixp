@@ -1,3 +1,3 @@
 trial,response,correct_answer,rt
-1,right,right,1.5192902088165283
-2,timeout,left,3
+1,timeout,down,3
+2,right,down,1.4132122993469238
