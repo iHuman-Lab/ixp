@@ -7,6 +7,7 @@ import yaml
 
 from ixp.individual_difference import MOT, VS
 from ixp.runner import ExperimentRunner
+from ixp.task import GeneralTask
 from tests.examples import ExampleSensor, ExampleTask
 from utils import skip_run
 
@@ -46,7 +47,6 @@ with skip_run('skip', 'test_features') as check, check():
 
     # Run the experiment
     runner.run()
-
     # Clean up
     runner.close()
 
@@ -59,6 +59,29 @@ with skip_run('run', 'multi_object_tracking') as check, check():
     # Register a practice task
     runner.add_task(name='multi_object_tracking', task_cls=MOT, task_config={'config': config['mot']}, order=1)
     runner.add_task(name='visual_search', task_cls=VS, task_config={'config': config['vs']}, order=2)
+   
+   
+    class NoOpTask(GeneralTask):
+        def __init__(self, config):
+            super().__init__(config)
+
+        def execute(self):
+            return None
+
+    runner.add_task(name='questionnaire_placeholder', task_cls=NoOpTask, task_config={'config': {}}, order=3)
 
     # Run the experiment
     runner.run()
+
+    # Close Ray resources then run the questionnaire in the main process
+    try:
+        runner.close()
+    except Exception:
+        pass
+
+    try:
+        from ixp.individual_difference.surveys.questionnaire import run_survey
+
+        run_survey()
+    except Exception:
+        print('Warning: survey could not be run interactively.')
