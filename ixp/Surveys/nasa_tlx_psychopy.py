@@ -40,6 +40,8 @@ def _collect_info_dialog(title: str = "NASA-TLX Info") -> Optional[Dict[str, str
         "Task": "",
         "Date": datetime.now().strftime("%Y-%m-%d"),
     }
+    from psychopy import gui
+
     dlg = gui.DlgFromDict(dictionary=info, title=title, fixed=["Date"])
     if not dlg.OK:
         return None
@@ -128,12 +130,13 @@ def run_nasa_tlx_psychopy(cfg: TLXConfig, info: Optional[Dict[str, Any]] = None)
         hint_stim = visual.TextStim(win, text="Press SPACE to confirm this item (ESC to quit).", color="white",
                                     height=0.04, pos=(0, -0.85), font=cfg.font)
 
-        # Slider: 0..100 with cfg.step increments
+        # Slider: 0..100 with cfg.step increments. Show numeric labels at 0,10,20,...100
         ticks = list(range(0, 101, cfg.step))
+        labels = [str(t) if (t % 10 == 0) else "" for t in ticks]
         slider = visual.Slider(
             win,
             ticks=ticks,
-            labels=None,
+            labels=labels,
             pos=(0, -0.10),
             size=(1.5, 0.12),
             granularity=cfg.step,

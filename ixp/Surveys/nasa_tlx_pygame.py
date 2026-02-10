@@ -169,6 +169,14 @@ def run_tlx(window, info: Dict[str, Any], out_csv: str = "nasa_tlx_results.csv",
             window.blit(left_surf, (rail_rect.left, rail_rect.bottom + 8))
             window.blit(right_surf, (rail_rect.right - right_surf.get_width(), rail_rect.bottom + 8))
 
+            # numeric tick labels at 0,10,...,100
+            for n in range(0, 101, 10):
+                tx = rail_rect.left + int((n / 100.0) * rail_rect.width)
+                num_surf = font.render(str(n), True, text_color)
+                num_x = tx - num_surf.get_width() // 2
+                num_y = rail_rect.bottom + 28
+                window.blit(num_surf, (num_x, num_y))
+
             hint = font.render("Click the line or use ←/→. Press SPACE to confirm.", True, text_color)
             window.blit(hint, (40, window.get_height() - 60))
 

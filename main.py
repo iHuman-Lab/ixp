@@ -72,7 +72,7 @@ with skip_run('run', 'multi_object_tracking') as check, check():
 
 	# Run the experiment
 	runner.run()
-
+elahe
 	# Close Ray resources then run the questionnaire in the main process
 	try:
 		runner.close()
@@ -103,4 +103,21 @@ with skip_run('run', 'multi_object_tracking') as check, check():
 	except Exception:
 		print('NASA-TLX survey could not be run interactively. See traceback:')
 		traceback.print_exc()
+
+# Run SART questionnaire after NASA-TLX
+try:
+	try:
+		from ixp.Surveys.sart import SART as SART_CLASS
+
+		SART_CLASS({}).execute()
+	except Exception:
+		import traceback
+
+		traceback.print_exc()
+		print('Falling back: SART could not be run with the selected backend')
+except Exception:
+	print('SART survey could not be run interactively. See traceback:')
+	import traceback
+
+	traceback.print_exc()
 
