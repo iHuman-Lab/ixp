@@ -46,15 +46,16 @@ def _rail(win: pygame.Surface) -> pygame.Rect:
     return pygame.Rect(int(w * 0.15), int(h * 0.5), int(w * 0.7), 28)
 
 
-class SART(GeneralTask):
-    """SART-like questionnaire (7-point Likert) with pygame."""
+class NasaTLX(GeneralTask):
+    """NASA-TLX workload questionnaire (1-100 scale) with pygame."""
 
     def __init__(self, config: dict | None = None):
         super().__init__(config or {})
         self.cfg = config or {}
 
     def _draw_slider(self, win: pygame.Surface, rail: pygame.Rect,
-                     value: int, fs: pygame.font.Font) -> None:
+                     value: int, lo_anchor: str, hi_anchor: str,
+                     fs: pygame.font.Font) -> None:
         """Draw the rail, tick marks, handle, and anchors."""
         pygame.draw.rect(win, _GRAY, rail, border_radius=6)
         for i in range(21):
@@ -63,12 +64,13 @@ class SART(GeneralTask):
             pygame.draw.line(win, _WHITE, (x, rail.top - h), (x, rail.top), 2)
         hx = rail.left + int((value - _MIN) / (_MAX - _MIN) * rail.width)
         pygame.draw.circle(win, _HANDLE, (_clamp(hx, rail.left, rail.right - 1), rail.centery), 14)
-        win.blit(fs.render('Low', True, _WHITE), (rail.left, rail.bottom + 18))
-        hi = fs.render('High', True, _WHITE)
+        win.blit(fs.render(lo_anchor, True, _WHITE), (rail.left, rail.bottom + 18))
+        hi = fs.render(hi_anchor, True, _WHITE)
         win.blit(hi, (rail.right - hi.get_width(), rail.bottom + 18))
 
     def _ask_question(self, win: pygame.Surface, idx: int, label: str,
-                      question: str, fs: pygame.font.Font, fb: pygame.font.Font) -> int:
+                      question: str, lo_anchor: str, hi_anchor: str,
+                      fs: pygame.font.Font, fb: pygame.font.Font) -> int:
         value, rail, clock = 50, _rail(win), pygame.time.Clock()
         wrapped = _wrap_text(question, fs, win.get_width() - 80)
 
@@ -93,7 +95,7 @@ class SART(GeneralTask):
             for line in wrapped:
                 win.blit(fs.render(line, True, _WHITE), (40, y))
                 y += fs.get_linesize()
-            self._draw_slider(win, rail, value, fs)
+            self._draw_slider(win, rail, value, lo_anchor, hi_anchor, fs)
             win.blit(fs.render('\u2190/\u2192 or click; SPACE to confirm', True, _GRAY), (40, win.get_height() - 60))
             pygame.display.flip()
             clock.tick(30)
@@ -106,8 +108,8 @@ class SART(GeneralTask):
             'Timestamp': datetime.now(tz=timezone.utc).isoformat(timespec='seconds'),
         }
         fs, fb = pygame.font.Font(None, 28), pygame.font.Font(None, 56)
-        for idx, (label, question) in enumerate(QUESTIONS, start=1):
-            results[f'Q{idx}_{label}'] = self._ask_question(win, idx, label, question, fs, fb)
+        for idx, (label, question, lo, hi) in enumerate(QUESTIONS, start=1):
+            results[f'Q{idx}_{label}'] = self._ask_question(win, idx, label, question, lo, hi, fs, fb)
 
         save_results(self.cfg.get('output_file', 'nasa_tlx_results.csv'),
                      list(results.keys()), [list(results.values())])
