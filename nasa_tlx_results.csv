@@ -1,5 +1,2 @@
-Name,Task,Date,Timestamp,MentalDemand,PhysicalDemand,TemporalDemand,Performance,Effort,Frustration
-,,2026-02-10,2026-02-10T09:04:48,0.0,1.0,6.0,8.0,9.0,9.0
-,,2026-02-10,2026-02-10T09:13:10,5.0,9.0,8.0,9.0,9.0,0.0
-elahe,nasa,2026-02-10,2026-02-10T09:33:34,78.97727272727272,50.0,50.0,50.0,50.0,50.0
-elahe,nasa,2026-02-10,2026-02-10T09:49:05,40.56818181818182,62.5,50.0,50.0,50.0,50.0
+Timestamp,Q1_Mental Demand,Q2_Physical Demand,Q3_Temporal Demand,Q4_Performance,Q5_Effort,Q6_Frustration
+2026-02-13T22:02:37+00:00,75,50,50,50,50,50

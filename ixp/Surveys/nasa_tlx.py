@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -9,17 +10,13 @@ from ixp.individual_difference.utils import check_quit, create_window, save_resu
 from ixp.task import GeneralTask
 
 QUESTIONS = [
-    ('Instability of Situation', 'How changeable is the situation? Is the situation highly unstable and likely to change suddenly (High), or is it very stable and straightforward (Low)?'),
-    ('Complexity of Situation', 'How complicated is the situation? Is it complex with many interrelated components (High), or is it simple and straightforward (Low)?'),
-    ('Variability of Situation', 'How many variables are changing within the situation? Are there a large number of factors varying (High), or are there very few variables changing (Low)?'),
-    ('Arousal', 'How aroused are you in the situation? Are you alert and ready for activity (High), or do you have a low degree of alertness (Low)?'),
-    ('Concentration of Attention', 'How much are you concentrating on the situation? Are you concentrating on many aspects of the situation (High), or focused on only one (Low)?'),
-    ('Division of Attention', 'How much is your attention divided in the situation? Are you concentrating on many aspects of the situation (High), or focused on only one (Low)?'),
-    ('Spare Mental Capacity', 'How much mental capacity do you have to spare in the situation? Do you have sufficient capacity to attend to many variables (High), or nothing to spare at all (Low)?'),
-    ('Information Quantity', 'How much information have you gained about the situation? Have you received and understood a great deal of knowledge (High), or very little (Low)?'),
-    ('Familiarity with Situation', 'How familiar are you with the situation? Do you have a great deal of relevant experience (High), or is it a new situation (Low)?'),
+    ("Mental Demand", "How mentally demanding was the task?", "Very Low", "Very High"),
+    ("Physical Demand", "How physically demanding was the task?", "Very Low", "Very High"),
+    ("Temporal Demand", "How hurried or rushed was the pace of the task?", "Very Low", "Very High"),
+    ("Performance", "How successful were you in accomplishing what you were asked to do?", "Perfect", "Failure"),
+    ("Effort", "How hard did you have to work to accomplish your level of performance?", "Very Low", "Very High"),
+    ("Frustration", "How insecure, discouraged, irritated, stressed, and annoyed were you?", "Very Low", "Very High"),
 ]
-
 _WHITE, _BLACK, _DARK = (255, 255, 255), (0, 0, 0), (30, 30, 30)
 _GRAY, _HANDLE = (200, 200, 200), (255, 0, 0)
 _MIN, _MAX = 1, 100
@@ -112,7 +109,7 @@ class SART(GeneralTask):
         for idx, (label, question) in enumerate(QUESTIONS, start=1):
             results[f'Q{idx}_{label}'] = self._ask_question(win, idx, label, question, fs, fb)
 
-        save_results(self.cfg.get('output_file', 'sart_results.csv'),
+        save_results(self.cfg.get('output_file', 'nasa_tlx_results.csv'),
                      list(results.keys()), [list(results.values())])
         pygame.quit()
         return results
