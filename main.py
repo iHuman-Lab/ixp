@@ -72,7 +72,7 @@ with skip_run('run', 'multi_object_tracking') as check, check():
 
 	# Run the experiment
 	runner.run()
-elahe
+
 	# Close Ray resources then run the questionnaire in the main process
 	try:
 		runner.close()
