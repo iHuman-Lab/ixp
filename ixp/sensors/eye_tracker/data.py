@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, dict, tuple
+from typing import Any
 
 import numpy as np
 from scipy.spatial import distance
@@ -29,6 +29,7 @@ def is_valid_gaze(values: tuple) -> bool:
     -------
     bool
         True if all gaze values are valid, False otherwise.
+
     """
     return all(x != INVALID_GAZE for x in values)
 
@@ -49,6 +50,7 @@ def get_gaze_position(gaze_data: dict[str, Any]) -> tuple[float, float]:
     tuple
         (x, y) coordinates of average gaze position.
         Returns (nan, nan) if gaze is invalid.
+
     """
     left = gaze_data['left_gaze_point_on_display_area']
     right = gaze_data['right_gaze_point_on_display_area']
@@ -70,13 +72,12 @@ def calculate_trackbox_coordinate(point: tuple, valid: int) -> tuple:
         (x, y) coordinates of eye position.
     valid : int
         Validity flag for the eye position.
-    tb2psycho_norm_function : callable
-        Function to normalize trackbox coordinates.
 
     Returns
     -------
     tuple
         Normalized (x, y) coordinates in trackbox space.
+
     """
     if valid != 1:
         return TRACKBOX_OUTSIDE
@@ -92,17 +93,17 @@ def get_trackbox_position(gaze_data: dict[str, Any]) -> tuple[tuple[float, float
     ----------
     gaze_data : dict
         Dictionary containing gaze tracking data with keys:
+
         - 'left_gaze_origin_in_trackbox_coordinate_system'
         - 'right_gaze_origin_in_trackbox_coordinate_system'
         - 'left_gaze_origin_validity'
         - 'right_gaze_origin_validity'
-    tb2psycho_norm_function : callable
-        Function to normalize trackbox coordinates.
 
     Returns
     -------
     tuple of tuples
         ((left_x, left_y), (right_x, right_y)) positions in trackbox coordinates.
+
     """
     left = gaze_data['left_gaze_origin_in_trackbox_coordinate_system']
     right = gaze_data['right_gaze_origin_in_trackbox_coordinate_system']
@@ -128,6 +129,7 @@ def get_3d_position(gaze_data: dict[str, Any]) -> tuple[float, float, float]:
     tuple
         (x, y, z) coordinates of average eye position.
         Returns (0, 0, 0) if position is invalid.
+
     """
     left = gaze_data['left_gaze_origin_in_user_coordinate_system']
     right = gaze_data['right_gaze_origin_in_user_coordinate_system']
@@ -152,6 +154,7 @@ def get_eye_distance(gaze_data: dict[str, Any]) -> float:
     float
         Distance from tracker origin in centimeters.
         Returns 0 if distance cannot be calculated.
+
     """
     eye_pos = get_3d_position(gaze_data)
     if sum(eye_pos) > 0:
@@ -175,6 +178,7 @@ def get_pupil_size(gaze_data: dict[str, Any]) -> float:
     float
         Average pupil size in millimeters.
         Returns DEFAULT_PUPIL if either pupil measurement is invalid.
+
     """
     left = gaze_data['left_pupil_diameter']
     right = gaze_data['right_pupil_diameter']
@@ -203,6 +207,7 @@ def get_eye_validity(gaze_data: dict[str, Any]) -> int:
         - 2: right eye valid
         - 1: left eye valid
         - 0: no valid eyes
+
     """
     left_valid = gaze_data['left_gaze_origin_validity']
     right_valid = gaze_data['right_gaze_origin_validity']
