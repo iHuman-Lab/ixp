@@ -4,10 +4,11 @@ from pathlib import Path
 
 import ray
 import yaml
-from ixp.Surveys.nasa_tlx import NasaTLX
-from ixp.Surveys.sart import SART
-from ixp.runner import ExperimentRunner as Experiment
+
+from ixp.experiment import Experiment
 from ixp.individual_difference import MOT, VS
+from ixp.surveys.nasa_tlx import NasaTLX
+from ixp.surveys.sart import SART
 from tests.examples import ExampleSensor, ExampleTask
 from utils import skip_run
 
@@ -52,7 +53,7 @@ with skip_run('skip', 'test_features') as check, check():
     experiment.close()
 
 
-with skip_run('skip', 'multi_object_tracking') as check, check():
+with skip_run('skip', 'individual_difference') as check, check():
     ray.init(ignore_reinit_error=True, _system_config={'metrics_report_interval_ms': 0})
 
     # Create an instance of Experiment
@@ -66,9 +67,16 @@ with skip_run('skip', 'multi_object_tracking') as check, check():
 
     experiment.close()
 
+with skip_run('run', 'multi_object_tracking') as check, check():
+    ray.init(ignore_reinit_error=True, _system_config={'metrics_report_interval_ms': 0})
 
-with skip_run('skip', 'sart') as check, check():
-    SART(config.get('sart', {})).execute()
+    # Create an instance of Experiment
+    experiment = Experiment(config)
+    # Register a practice task
+    experiment.add_task(name='sart', task_cls=SART, task_config={'config': config['surveys']}, order=1)
+    experiment.add_task(name='nasa_tlx', task_cls=NasaTLX, task_config={'config': config['surveys']}, order=2)
 
-with skip_run('run', 'nasa_tlx') as check, check():
-    NasaTLX(config.get('nasa_tlx', {})).execute()  
+    # Run the experiment
+    experiment.run()
+
+    experiment.close()

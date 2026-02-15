@@ -1,13 +1,20 @@
+# vs_task.py
 from __future__ import annotations
 
 import random
 import time
 from pathlib import Path
+from typing import Any
 
 import pygame
 
-from ixp.individual_difference.utils import check_quit, create_window, parse_color, save_results, show_fixation
-from ixp.task import GeneralTask
+from ixp.individual_difference.utils import (
+    check_quit,
+    create_window,
+    parse_color,
+    show_fixation,
+)
+from ixp.task import Block, Task, Trial
 
 MODULE_DIR = Path(__file__).parent
 
@@ -16,23 +23,35 @@ KEY_TO_NAME = {pygame.K_UP: 'up', pygame.K_DOWN: 'down', pygame.K_LEFT: 'left', 
 ANGLE_TO_NAME = {0: 'up', 90: 'left', 180: 'down', 270: 'right'}
 
 
-class VS(GeneralTask):
-    """Visual Search task: find the T among L distractors."""
+class VSTrial(Trial):
+    """
+    Visual search trial implementation.
 
-    def __init__(self, config: dict):
-        super().__init__(config)
+    Displays a grid of T and L stimuli where the participant must identify
+    the orientation of the target T among L distractors.
 
-        self.cfg = config
-        self.window = create_window(config)
-        pygame.display.set_caption('Visual Search')
-        self.font = pygame.font.Font(None, 80)
-        self.images = self._load_images()
+    Parameters
+    ----------
+    trial_id : str
+        Unique identifier for the trial.
+    parameters : dict[str, Any]
+        Configuration parameters including rows, cols, angles, etc.
+    window : pygame.Surface
+        The pygame window surface to render stimuli.
 
-        self.background_color = parse_color(config, 'background_color', [120, 120, 120])
-        self.fixation_color = parse_color(config, 'fixation_color', [0, 0, 0])
+    """
 
-    def _load_images(self) -> dict:
-        size = self.cfg.get('stimulus_size', 60)
+    def __init__(self, trial_id: str, parameters: dict[str, Any]):
+        super().__init__(trial_id, parameters)
+        self.cfg = parameters
+
+        self.background_color = parse_color(self.cfg, 'background_color', [120, 120, 120])
+        self.fixation_color = parse_color(self.cfg, 'fixation_color', [0, 0, 0])
+
+    def _load_images(self) -> dict[str, pygame.Surface]:
+        screen_h = self.window.get_height()
+        scale_factor = self.cfg.get('stimulus_scale', 0.10)
+        size = int(screen_h * scale_factor)
         images = {}
         for name in ['T', 'L1', 'L2']:
             path = MODULE_DIR / f'{name}.png'
@@ -40,7 +59,7 @@ class VS(GeneralTask):
             images[name] = pygame.transform.smoothscale(img, (size, size))
         return images
 
-    def _show_fixation(self) -> None:
+    def _show_fixation(self):
         show_fixation(
             self.window,
             self.background_color,
@@ -53,10 +72,11 @@ class VS(GeneralTask):
 
         rows = self.cfg['rows']
         cols = self.cfg['cols']
-        padding = self.cfg.get('padding', 50)
         angles = self.cfg['angles']
 
         width, height = self.window.get_size()
+        padding_scale = self.cfg.get('padding_scale', 0.05)
+        padding = int(height * padding_scale)
         cell_width = (width - 2 * padding) // cols
         cell_height = (height - 2 * padding) // rows
 
@@ -80,7 +100,7 @@ class VS(GeneralTask):
         pygame.display.flip()
         return target_angle
 
-    def _wait_response(self, target_angle: int) -> tuple[str, str, float] | None:
+    def _wait_response(self, target_angle: int):
         correct_answer = ANGLE_TO_NAME[target_angle]
         timeout = self.cfg.get('response_timeout', 5)
         start = time.time()
@@ -97,23 +117,58 @@ class VS(GeneralTask):
 
         return 'timeout', correct_answer, timeout
 
-    def execute(self) -> list:
-        results = []
+    def initialize(self):
+        self.window = self.cfg['_window']
+        self.images = self._load_images()
+        self.font = pygame.font.Font(None, 80)
 
-        for _ in range(self.cfg['total_trials']):
-            self._show_fixation()
-            target_angle = self._show_stimuli()
-            result = self._wait_response(target_angle)
+    def execute(self):
+        self._show_fixation()
+        target_angle = self._show_stimuli()
+        result = self._wait_response(target_angle)
+        if result is None:
+            return None
+        return result
 
-            if result is None:
-                break
+    def clean_up(self):
+        pass
 
-            results.append(result)
-            pygame.time.delay(self.cfg.get('post_trial_pause', 1000))
 
-        save_results(
-            self.cfg.get('output_file', 'vs_results.csv'),
-            ['trial', 'response', 'correct_answer', 'rt'],
-            [(i + 1, *r) for i, r in enumerate(results)],
-        )
-        return results
+class VS(Task):
+    """
+    Visual Search task containing a block of VSTrials.
+
+    Participants search for a target T among L distractors and indicate
+    the target's orientation using arrow keys.
+
+    Parameters
+    ----------
+    config : dict[str, Any]
+        Configuration dictionary containing:
+
+        - total_trials : int - Number of trials
+        - rows : int - Grid rows
+        - cols : int - Grid columns
+        - angles : list - Possible stimulus orientations
+        - width : int - Window width
+        - height : int - Window height
+
+    """
+
+    def __init__(self, config: dict[str, Any]):
+        super().__init__(config)
+        block = Block('vs_block')
+
+        for trial_idx in range(config['total_trials']):
+            trial = VSTrial(trial_id=f'trial_{trial_idx}', parameters=config)
+            block.add_trial(trial, order=trial_idx)
+
+        self.add_block(block)
+
+    def execute(self, order: str = 'predefined'):
+        self.config['_window'] = create_window(self.config)
+        try:
+            for block in self.blocks:
+                block.execute(order)
+        finally:
+            pygame.quit()

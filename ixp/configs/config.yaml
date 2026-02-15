@@ -13,66 +13,10 @@ vs:
   background_color: [120, 120, 120] # gray
   fixation_color: [0, 0, 0] # black
 
-survey:
-  questions:
-    - id: tlx_mental_demand
-      text: "Mental Demand — How mentally demanding was the task?"
-      type: scale
-      min: 0
-      max: 20
-      left_label: "Very Low"
-      right_label: "Very High"
-
-    - id: tlx_physical_demand
-      text: "Physical Demand — How physically demanding was the task?"
-      type: scale
-      min: 0
-      max: 20
-      left_label: "Very Low"
-      right_label: "Very High"
-
-    - id: tlx_temporal_demand
-      text: "Temporal Demand — How hurried or rushed was the pace of the task?"
-      type: scale
-      min: 0
-      max: 20
-      left_label: "Very Low"
-      right_label: "Very High"
-
-    - id: tlx_performance
-      text: "Performance — How successful were you in accomplishing what you were asked to do?"
-      type: scale
-      min: 0
-      max: 20
-      left_label: "Perfect"
-      right_label: "Failure"
-
-    - id: tlx_effort
-      text: "Effort — How hard did you have to work to accomplish your level of performance?"
-      type: scale
-      min: 0
-      max: 20
-      left_label: "Very Low"
-      right_label: "Very High"
-
-    - id: tlx_frustration
-      text: "Frustration — How insecure, discouraged, irritated, stressed, and annoyed were you?"
-      type: scale
-      min: 0
-      max: 20
-      left_label: "Very Low"
-      right_label: "Very High"
-
-    - id: comments
-      text: "Any additional comments? (press Enter to skip)"
-      type: text
-  use_pygame: true
-  window:
-    width: 800
-    height: 600
-    fullscreen: false
-  background_color: [120, 120, 120]
-  text_color: [0, 0, 0]
+surveys:
+  sart_save_path: 'sart_results.csv'
+  nasa_tlx_save_path: 'nasa_tlx_results.csv'
+  fullscreen: true
 
 mot:
   width: 800
