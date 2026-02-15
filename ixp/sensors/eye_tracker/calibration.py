@@ -51,22 +51,8 @@ def validate_window(psycho_win: visual.Window) -> None:
 
 
 def create_visual_elements(psycho_win: visual.Window, rect_scale: tuple[float, float]):
-    """
-    Create all visual elements needed for eye tracking.
+    """Create all visual elements needed for eye tracking."""
 
-    Parameters
-    ----------
-    psycho_win : visual.Window
-        The PsychoPy window to create elements in.
-    rect_scale : tuple[float, float]
-        Scale factors (width, height) for the viewing area rectangle.
-
-    Returns
-    -------
-    tuple
-        A tuple containing (eye_area, left_eye, right_eye, message) visual elements.
-
-    """
     # Create viewing area
     eye_area = visual.Rect(
         psycho_win,
@@ -227,6 +213,8 @@ def draw_eye_positions(tracker, psycho_win: visual.Window):
     rect_scale = tracker.tb2Ada(WINDOW_CONFIG['rect_scale'])
     eye_area, left_eye, right_eye, message = create_visual_elements(psycho_win, rect_scale)
 
+    
+
     while True:
         # Update eye positions and distance
         left_eye.pos, right_eye.pos = tracker.trackboxEyePos()
@@ -246,7 +234,6 @@ def draw_eye_positions(tracker, psycho_win: visual.Window):
         # Handle user input
         if handle_user_input(psycho_win, tracker.stopGazeData):
             return
-
         event.clearEvents(eventType='keyboard')
 
 
