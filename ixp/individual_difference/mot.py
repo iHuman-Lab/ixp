@@ -5,212 +5,171 @@ import math
 import random
 from typing import Any
 
-import pygame
+from psychopy import core, event, visual
 
-from ixp.individual_difference.utils import check_quit, create_window, show_fixation
-from ixp.task import Block, GeneralTask, Trial
-
-
-class Circle(pygame.sprite.Sprite):
-    DEFAULT_COLOR = (255, 255, 255)
-    TARGET_COLOR = (0, 0, 0)
-    SELECTED_COLOR = (0, 0, 0)
-
-    def __init__(self, is_target: bool, speed: float, radius: int, width: int, height: int):
-        super().__init__()
-        self.radius = radius
-        self.width = width
-        self.height = height
-        self.is_target = is_target
-        self.selected = False
-        self.speed = speed
-        self.moving = False
-
-        # Pre-render images
-        self.image_default = self.make_surface(self.DEFAULT_COLOR)
-        self.image_target = self.make_surface(self.TARGET_COLOR)
-        self.image_selected = self.make_surface(self.SELECTED_COLOR)
-        self.image = self.image_target if self.is_target else self.image_default
-
-        self.rect = self.image.get_rect(
-            center=(
-                random.randint(self.radius, self.width - self.radius),
-                random.randint(self.radius, self.height - self.radius),
-            )
-        )
-
-        angle = random.uniform(0, 2 * math.pi)
-        self.vx = self.speed * math.cos(angle)
-        self.vy = self.speed * math.sin(angle)
-
-    def make_surface(self, color):
-        surf = pygame.Surface((self.radius * 2, self.radius * 2), pygame.SRCALPHA)
-        pygame.draw.circle(surf, color, (self.radius, self.radius), self.radius)
-        return surf
-
-    def update(self):
-        if not self.moving:
-            return
-        self.rect.x += self.vx
-        self.rect.y += self.vy
-        if self.rect.left <= 0 or self.rect.right >= self.width:
-            self.vx *= -1
-        if self.rect.top <= 0 or self.rect.bottom >= self.height:
-            self.vy *= -1
-
-    def hide_target(self):
-        self.image = self.image_default
-
-    def show_target(self):
-        self.image = self.image_target if self.is_target else self.image_default
-
-    def select(self):
-        self.selected = True
-        self.image = self.image_selected
-
-    def reset_position(self):
-        self.rect.center = (
-            random.randint(self.radius, self.width - self.radius),
-            random.randint(self.radius, self.height - self.radius),
-        )
-        angle = random.uniform(0, 2 * math.pi)
-        self.vx = self.speed * math.cos(angle)
-        self.vy = self.speed * math.sin(angle)
+# Assuming these are available in your framework
+from ixp.task import Block, Task, Trial
 
 
 class MOTTrial(Trial):
-    def __init__(self, trial_id: str, parameters: dict[str, Any], window: pygame.Surface):
+    """
+    Multiple Object Tracking trial using PsychoPy.
+    """
+
+    def __init__(self, trial_id: str, parameters: dict[str, Any]):
         super().__init__(trial_id, parameters)
         self.cfg = parameters
-        self.window = window
-        self.clock = pygame.time.Clock()
-        self.background_color = self.cfg.get('background_color', [120, 120, 120])
-        self.fixation_color = self.cfg.get('fixation_color', [0, 0, 0])
-        self.target_ids = set(random.sample(range(self.cfg['num_objects']), self.cfg['num_targets']))
-        self.circles = pygame.sprite.Group()
-        self._create_circles()
+        self.circles = []
 
-    def _create_circles(self):
-        for i in range(self.cfg['num_objects']):
-            self.circles.add(
-                Circle(
-                    is_target=(i in self.target_ids),
-                    speed=self.cfg['speed'],
-                    radius=self.cfg['radius'],
-                    width=self.window.get_width(),
-                    height=self.window.get_height(),
-                )
+    def initialize(self):
+        """
+        Prepare stimuli before the trial starts.
+        Requires self.cfg['_window'] to be set by the Task.
+        """
+        self.win = self.cfg['_window']
+        self.num_objects = self.cfg.get('num_objects', 8)
+        self.num_targets = self.cfg.get('num_targets', 3)
+        self.radius = self.cfg.get('radius_scale', 0.025)
+        self.speed = self.cfg.get('speed_scale', 0.005)
+
+        self.target_indices = random.sample(range(self.num_objects), self.num_targets)
+
+        # Calculate bounds based on current window aspect ratio
+        aspect_ratio = self.win.size[0] / self.win.size[1]
+        x_lim = (0.5 * aspect_ratio) - self.radius
+        y_lim = 0.5 - self.radius
+
+        self.circles = []
+        for i in range(self.num_objects):
+            is_target = i in self.target_indices
+            pos = [random.uniform(-x_lim, x_lim), random.uniform(-y_lim, y_lim)]
+
+            stim = visual.Circle(
+                self.win,
+                radius=self.radius,
+                pos=pos,
+                fillColor='black' if is_target else 'white',
+                lineColor=None,
+                units='height',
             )
 
-    def _update_screen(self, update_motion: bool = True):
-        if check_quit():
-            raise SystemExit
-        if update_motion:
-            self.circles.update()
-        self.window.fill(self.background_color)
-        self.circles.draw(self.window)
-        pygame.display.flip()
-        self.clock.tick(60)
+            angle = random.uniform(0, 2 * math.pi)
+            vel = [self.speed * math.cos(angle), self.speed * math.sin(angle)]
 
-    def _wait(self, duration_ms: int):
-        start = pygame.time.get_ticks()
-        while pygame.time.get_ticks() - start < duration_ms:
-            self._update_screen(update_motion=False)
+            self.circles.append({'stim': stim, 'vel': vel, 'is_target': is_target})
 
-    def _reset_circles(self):
+    def _update_motion(self):
+        """Internal helper for frame-by-frame updates."""
+        aspect_ratio = self.win.size[0] / self.win.size[1]
+        x_lim = (0.5 * aspect_ratio) - self.radius
+        y_lim = 0.5 - self.radius
+
         for c in self.circles:
-            c.selected = False
-            c.moving = False
-            c.reset_position()
-            c.show_target()
+            pos = c['stim'].pos
+            vel = c['vel']
 
-    def _blink_targets(self):
-        blink_count = self.cfg.get('blink_count', 3)
-        blink_interval = self.cfg.get('blink_interval', 200)
-        for _ in range(blink_count):
+            new_x, new_y = pos[0] + vel[0], pos[1] + vel[1]
+
+            if abs(new_x) >= x_lim:
+                vel[0] *= -1
+                new_x = math.copysign(x_lim, new_x)
+            if abs(new_y) >= y_lim:
+                vel[1] *= -1
+                new_y = math.copysign(y_lim, new_y)
+
+            c['stim'].pos = (new_x, new_y)
+
+    def _target_phase(self):
+        display_timer = core.CountdownTimer(self.cfg.get('target_display_time', 1.5))
+        while display_timer.getTime() > 0:
             for c in self.circles:
-                c.hide_target()
-            self._wait(blink_interval)
-            for c in self.circles:
-                c.show_target()
-            self._wait(blink_interval)
+                c['stim'].draw()
+            self.win.flip()
 
-    def _start_tracking(self):
+    def _tracking_phase(self):
         for c in self.circles:
-            c.hide_target()
-            c.moving = True
-        tracking_time = self.cfg['trial_time'] * 1000
-        start = pygame.time.get_ticks()
-        while pygame.time.get_ticks() - start < tracking_time:
-            self._update_screen(update_motion=True)
-        for c in self.circles:
-            c.moving = False
+            c['stim'].fillColor = 'white'
+
+        tracking_timer = core.CountdownTimer(self.cfg.get('trial_time', 5))
+        while tracking_timer.getTime() > 0:
+            self._update_motion()
+            for c in self.circles:
+                c['stim'].draw()
+            self.win.flip()
+            if 'escape' in event.getKeys():
+                core.quit()
 
     def _selection_phase(self):
+        mouse = event.Mouse(win=self.win)
         selected = []
-        while len(selected) < self.cfg['num_targets']:
-            events = pygame.event.get()
-            if check_quit(events):
-                return None
-            for event in events:
-                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    for c in self.circles:
-                        if c.rect.collidepoint(event.pos) and c not in selected:
-                            c.select()
-                            selected.append(c)
-            self._update_screen(update_motion=False)
+        event.clearEvents()
+        while len(selected) < self.num_targets:
+            for c in self.circles:
+                c['stim'].draw()
+            self.win.flip()
+
+            if mouse.getPressed()[0]:
+                m_pos = mouse.getPos()
+                for c in self.circles:
+                    if c['stim'].contains(m_pos) and c not in selected:
+                        c['stim'].fillColor = 'red'
+                        selected.append(c)
+
+                        for stim_to_draw in self.circles:
+                            stim_to_draw['stim'].draw()
+                        self.win.flip()
+
+                        while mouse.getPressed()[0]:
+                            pass  # Debounce
+
+        core.wait(2.0)
         return selected
 
-    def get_data_signature(self):
-        # Save-only trial (no LSL)
-        return {
-            'name': 'MOTTrial',
-            'type': 'none',
-            'channel_count': 0,
-            'nominal_srate': 0,
-            'channel_format': 'string',
-            'source_id': f'MOT_{self.trial_id}',
-        }
+    def execute(self) -> int:
+        """Main trial logic loop."""
+        # 1. Target Phase (Show targets)
+        self._target_phase()
 
-    def execute(self):
-        # Show fixation
-        show_fixation(self.window, self.background_color, self.fixation_color, self.cfg.get('fixation_time', 1000))
+        # 2. Tracking Phase (All white, moving)
+        self._tracking_phase()
 
-        # Reset and display circles
-        self._reset_circles()
-        self._wait(self.cfg.get('target_display_time', 2000))
-
-        # Blink targets
-        self._blink_targets()
-
-        # Tracking phase
-        self._start_tracking()
-
-        # Selection phase
+        # 3. Selection Phase
         selected = self._selection_phase()
-        if selected is None:
-            return None
+        return sum(1 for c in selected if c['is_target'])
 
-        # Post-trial pause
-        self._wait(self.cfg.get('post_trial_pause', 1500))
-
-        # Return number of correctly selected targets
-        return sum(c.is_target for c in selected)
+    def clean_up(self):
+        """Clear references to stimuli to free memory."""
+        self.circles = []
 
 
-class MOT(GeneralTask):
+class MOT(Task):
+    """
+    Multiple Object Tracking task containing a block of MOTTrials.
+    """
+
     def __init__(self, config: dict[str, Any]):
         super().__init__(config)
-        self.window = create_window(config)
-        block = Block('mot_block')
-
-        for trial_idx in range(config['total_trials']):
-            trial = MOTTrial(trial_id=f'trial_{trial_idx}', parameters=config, window=self.window)
-            block.add_trial(trial, order=trial_idx)
-
-        self.add_block(block)
+        # Create the block logic (assuming your framework uses Block/Trial architecture)
+        self.block = Block('mot_block')
+        for trial_idx in range(config.get('total_trials', 5)):
+            trial = MOTTrial(trial_id=f'trial_{trial_idx}', parameters=config)
+            self.block.add_trial(trial, order=trial_idx)
+        self.add_block(self.block)
 
     def execute(self, order: str = 'predefined'):
-        if self.blocks:
+        # Initialize the PsychoPy window
+        self.config['_window'] = visual.Window(
+            size=self.config.get('window_size', [1000, 800]),
+            units='height',
+            color=[0.5, 0.5, 0.5],  # Neutral grey
+            fullscr=self.config.get('fullscreen', False),
+        )
+
+        try:
+            results = []
             for block in self.blocks:
-                block.execute(order)
+                block_results = block.execute(order)
+                results.append(block_results)
+            return results
+        finally:
+            self.config['_window'].close()

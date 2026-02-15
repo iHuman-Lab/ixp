@@ -19,6 +19,7 @@ def handle_time_sync(sync_data):
     -------
     dict
         The time synchronization data.
+
     """
     return sync_data
 
@@ -36,6 +37,7 @@ def subscribe_to_time_sync(eyetracker):
     ------
     ValueError
         If the eyetracker is not connected.
+
     """
     if not eyetracker:
         msg = 'Eyetracker is not connected.'
@@ -53,6 +55,7 @@ def unsubscribe_from_time_sync(eyetracker):
     ----------
     eyetracker : tobii.EyeTracker
         The connected eyetracker to unsubscribe from time synchronization data.
+
     """
     eyetracker.unsubscribe_from(tobii.EYETRACKER_TIME_SYNCHRONIZATION_DATA, handle_time_sync)
     logging.info('Unsubscribed from time sync.')
@@ -80,6 +83,7 @@ def trackbox_to_active_disp(xy_coords, trackbox_coords, active_dis_coords):
     ------
     ValueError
         If `xy_coords` is not a 2-tuple, or if `trackbox_coords` or `active_dis_coords` are missing.
+
     """
     if not isinstance(xy_coords, tuple) or len(xy_coords) != 2:
         msg = 'XY coordinates must be a 2-tuple.'
@@ -120,6 +124,7 @@ def trackbox_to_psycho_norm(xy_coords, trackbox_coords, active_dis_coords):
     ------
     ValueError
         If `xy_coords` is not a 2-tuple, or if `trackbox_coords` or `active_dis_coords` are missing.
+
     """
     active_dis_coords = trackbox_to_active_disp(xy_coords, trackbox_coords, active_dis_coords)
     center_scale = trackbox_to_active_disp((1, 1), trackbox_coords, active_dis_coords)
@@ -147,6 +152,7 @@ def active_dis_to_psycho_pix(xy_coords, win):
     ------
     ValueError
         If `xy_coords` is not a 2-tuple.
+
     """
     if not isinstance(xy_coords, tuple) or len(xy_coords) != 2:
         msg = 'XY coordinates must be a 2-tuple.'
@@ -184,6 +190,7 @@ def active_disp_to_mont_pix(xy_coords, win):
     ------
     ValueError
         If `xy_coords` is not a 2-tuple.
+
     """
     if not isinstance(xy_coords, tuple) or len(xy_coords) != 2:
         msg = 'XY coordinates must be a 2-tuple.'

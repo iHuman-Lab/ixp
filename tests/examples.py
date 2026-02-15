@@ -5,12 +5,12 @@ import time
 from typing import Any
 
 from ixp.sensors.base_sensor import Sensor
-from ixp.task import GeneralTask
+from ixp.task import Task
 
 logger = logging.getLogger()
 
 
-class ExampleTask(GeneralTask):
+class ExampleTask(Task):
     def __init__(self, task_config):
         super().__init__(config=task_config)
 

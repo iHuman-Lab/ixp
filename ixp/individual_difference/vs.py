@@ -2,138 +2,137 @@
 from __future__ import annotations
 
 import random
-import time
 from pathlib import Path
 from typing import Any
 
-import pygame
+from psychopy import core, event, visual
 
-from ixp.individual_difference.utils import (
-    check_quit,
-    create_window,
-    parse_color,
-    show_fixation,
-)
-from ixp.task import Block, GeneralTask, Trial
+from ixp.task import Block, Task, Trial
+
+# Constants for PsychoPy orientation (PsychoPy 0 is Up, 90 is Right)
+# We map your 0, 90, 180, 270 logic accordingly
+ANGLE_MAP = {0: 'up', 90: 'left', 180: 'down', 270: 'right'}
+KEY_MAP = {'up': 'up', 'down': 'down', 'left': 'left', 'right': 'right'}
 
 MODULE_DIR = Path(__file__).parent
 
-ARROW_KEYS = {pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT}
-KEY_TO_NAME = {pygame.K_UP: 'up', pygame.K_DOWN: 'down', pygame.K_LEFT: 'left', pygame.K_RIGHT: 'right'}
-ANGLE_TO_NAME = {0: 'up', 90: 'left', 180: 'down', 270: 'right'}
-
 
 class VSTrial(Trial):
-    def __init__(self, trial_id: str, parameters: dict[str, Any], window: pygame.Surface):
+    def __init__(self, trial_id: str, parameters: dict[str, Any]):
         super().__init__(trial_id, parameters)
         self.cfg = parameters
-        self.window = window
-        self.font = pygame.font.Font(None, 80)
-        self.images = self._load_images()
-        self.background_color = parse_color(self.cfg, 'background_color', [120, 120, 120])
-        self.fixation_color = parse_color(self.cfg, 'fixation_color', [0, 0, 0])
+        self.stims = []
 
-    def _load_images(self) -> dict[str, pygame.Surface]:
-        size = self.cfg.get('stimulus_size', 60)
-        images = {}
-        for name in ['T', 'L1', 'L2']:
-            path = MODULE_DIR / f'{name}.png'
-            img = pygame.image.load(str(path)).convert_alpha()
-            images[name] = pygame.transform.smoothscale(img, (size, size))
-        return images
+    def initialize(self):
+        self.win = self.cfg['_window']
+        self.rows = self.cfg['rows']
+        self.cols = self.cfg['cols']
+        self.angles = self.cfg['angles']
 
-    def _show_fixation(self):
-        show_fixation(
-            self.window,
-            self.background_color,
-            self.fixation_color,
-            self.cfg.get('fixation_time', 2000),
-        )
+        # Stimulus scaling
+        screen_h = 1.0  # height units
+        scale_factor = self.cfg.get('stimulus_scale', 0.10)
+        size = scale_factor
 
-    def _show_stimuli(self) -> int:
-        self.window.fill(self.background_color)
+        # Determine Grid Layout
+        # Grid spans from -0.4 to 0.4 in height units to leave margins
+        grid_height = 0.8
+        grid_width = grid_height * (self.win.size[0] / self.win.size[1])
 
-        rows = self.cfg['rows']
-        cols = self.cfg['cols']
-        padding = self.cfg.get('padding', 50)
-        angles = self.cfg['angles']
+        x_start = -(grid_width * 0.4)
+        y_start = 0.4
+        x_step = (grid_width * 0.8) / max(1, self.cols - 1) if self.cols > 1 else 0
+        y_step = 0.8 / max(1, self.rows - 1) if self.rows > 1 else 0
 
-        width, height = self.window.get_size()
-        cell_width = (width - 2 * padding) // cols
-        cell_height = (height - 2 * padding) // rows
+        target_index = random.randint(0, self.rows * self.cols - 1)
+        self.target_angle = random.choice(self.angles)
+        self.correct_answer = ANGLE_MAP[self.target_angle]
 
-        target_index = random.randint(0, rows * cols - 1)
-        target_angle = random.choice(angles)
-
-        for index in range(rows * cols):
-            row, col = divmod(index, cols)
-            x = padding + col * cell_width + cell_width // 2
-            y = padding + row * cell_height + cell_height // 2
+        self.stims = []
+        for index in range(self.rows * self.cols):
+            row, col = divmod(index, self.cols)
+            pos = (x_start + col * x_step, y_start - row * y_step)
 
             if index == target_index:
-                image = pygame.transform.rotate(self.images['T'], target_angle)
+                image_path = MODULE_DIR / 'T.png'
+                angle = self.target_angle
             else:
-                distractor = random.choice(['L1', 'L2'])
-                angle = random.choice(angles)
-                image = pygame.transform.rotate(self.images[distractor], angle)
+                image_path = MODULE_DIR / f'{random.choice(["L1", "L2"])}.png'
+                angle = random.choice(self.angles)
 
-            self.window.blit(image, image.get_rect(center=(x, y)))
-
-        pygame.display.flip()
-        return target_angle
-
-    def _wait_response(self, target_angle: int):
-        correct_answer = ANGLE_TO_NAME[target_angle]
-        timeout = self.cfg.get('response_timeout', 5)
-        start = time.time()
-
-        while time.time() - start <= timeout:
-            events = pygame.event.get()
-            if check_quit(events):
-                return None
-            for event in events:
-                if event.type == pygame.KEYDOWN and event.key in ARROW_KEYS:
-                    response = KEY_TO_NAME[event.key]
-                    reaction_time = time.time() - start
-                    return response, correct_answer, reaction_time
-
-        return 'timeout', correct_answer, timeout
-
-    def get_data_signature(self):
-        return {
-            'name': 'VSTrial',
-            'type': 'none',
-            'channel_count': 0,
-            'nominal_srate': 0,
-            'channel_format': 'string',
-            'source_id': f'VS_{self.trial_id}',
-        }
+            stim = visual.ImageStim(
+                self.win,
+                image=str(image_path),
+                pos=pos,
+                size=(size, size),
+                ori=angle,  # PsychoPy uses degrees
+                units='height',
+            )
+            self.stims.append(stim)
 
     def execute(self):
-        self._show_fixation()
-        target_angle = self._show_stimuli()
-        result = self._wait_response(target_angle)
-        if result is None:
-            return None
-        return result
+        # 1. Fixation
+        # (Assuming your show_fixation utility is updated for PsychoPy)
+        fixation = visual.TextStim(self.win, text='+', color='black', height=0.05)
+        fixation.draw()
+        self.win.flip()
+        core.wait(self.cfg.get('fixation_time', 2000) / 1000.0)
+
+        # 2. Show Stimuli
+        for s in self.stims:
+            s.draw()
+        self.win.flip()
+
+        # 3. Wait for Response
+        start_time = core.getTime()
+        timeout = self.cfg.get('response_timeout', 5)
+
+        # Clear previous keys
+        event.clearEvents()
+
+        response = 'timeout'
+        rt = timeout
+
+        while core.getTime() - start_time < timeout:
+            keys = event.getKeys(keyList=['up', 'down', 'left', 'right', 'escape'])
+            if 'escape' in keys:
+                core.quit()
+            if keys:
+                response = keys[0]
+                rt = core.getTime() - start_time
+                break
+
+            # Keep drawing stimuli during wait to prevent flickering
+            for s in self.stims:
+                s.draw()
+            self.win.flip()
+
+        return response, self.correct_answer, rt
+
+    def clean_up(self):
+        self.stims = []
 
 
-class VS(GeneralTask):
-    """GeneralTask containing a block of VSTrials"""
-
+class VS(Task):
     def __init__(self, config: dict[str, Any]):
         super().__init__(config)
-        self.window = create_window(config)
         block = Block('vs_block')
 
         for trial_idx in range(config['total_trials']):
-            trial = VSTrial(trial_id=f'trial_{trial_idx}', parameters=config, window=self.window)
+            trial = VSTrial(trial_id=f'trial_{trial_idx}', parameters=config)
             block.add_trial(trial, order=trial_idx)
 
         self.add_block(block)
 
     def execute(self, order: str = 'predefined'):
-        self.initial_setup()
-
-        for block in self.blocks:
-            block.execute(order)
+        self.config['_window'] = visual.Window(
+            size=self.config.get('window_size', [1100, 800]),
+            units='height',
+            color=[0.5, 0.5, 0.5],  # RGB -1 to 1 or normalized
+            fullscr=self.config.get('fullscreen', False),
+        )
+        try:
+            for block in self.blocks:
+                block.execute(order)
+        finally:
+            self.config['_window'].close()

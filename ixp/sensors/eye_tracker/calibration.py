@@ -31,7 +31,20 @@ DISTANCE_RANGES = {
 
 
 def validate_window(psycho_win: visual.Window) -> None:
-    """Check if PsychoPy window exists."""
+    """
+    Check if PsychoPy window exists.
+
+    Parameters
+    ----------
+    psycho_win : visual.Window
+        The PsychoPy window to validate.
+
+    Raises
+    ------
+    ValueError
+        If the window is None.
+
+    """
     if psycho_win is None:
         msg = 'No PsychoPy window available. Try calling run_trackbox() instead.'
         raise ValueError(msg)
@@ -39,6 +52,7 @@ def validate_window(psycho_win: visual.Window) -> None:
 
 def create_visual_elements(psycho_win: visual.Window, rect_scale: tuple[float, float]):
     """Create all visual elements needed for eye tracking."""
+
     # Create viewing area
     eye_area = visual.Rect(
         psycho_win,
@@ -73,7 +87,20 @@ def create_visual_elements(psycho_win: visual.Window, rect_scale: tuple[float, f
 
 
 def get_eye_color(eye_distance: float) -> list[float]:
-    """Determine eye stimulus color based on distance."""
+    """
+    Determine eye stimulus color based on distance.
+
+    Parameters
+    ----------
+    eye_distance : float
+        Distance of eyes from the screen in centimeters.
+
+    Returns
+    -------
+    list[float]
+        RGB color values in PsychoPy format [-1, 1].
+
+    """
     # Check for 'correct' distance range
     if DISTANCE_RANGES['correct'][0] <= eye_distance <= DISTANCE_RANGES['correct'][1]:
         return COLORS['correct']
@@ -88,7 +115,21 @@ def get_eye_color(eye_distance: float) -> list[float]:
 
 
 def update_eye_stimuli(left_eye: visual.Circle, right_eye: visual.Circle, eye_distance: float, window_color) -> None:
-    """Update eye stimuli colors and handle invalid positions."""
+    """
+    Update eye stimuli colors and handle invalid positions.
+
+    Parameters
+    ----------
+    left_eye : visual.Circle
+        Left eye visual stimulus.
+    right_eye : visual.Circle
+        Right eye visual stimulus.
+    eye_distance : float
+        Distance of eyes from the screen in centimeters.
+    window_color : any
+        Background color to use for invalid positions.
+
+    """
     color = get_eye_color(eye_distance)
 
     for eye in (left_eye, right_eye):
@@ -100,7 +141,27 @@ def update_eye_stimuli(left_eye: visual.Circle, right_eye: visual.Circle, eye_di
 
 
 def handle_user_input(psycho_win: visual.Window, stop_gaze_data) -> bool:
-    """Handle user keyboard input."""
+    """
+    Handle user keyboard input.
+
+    Parameters
+    ----------
+    psycho_win : visual.Window
+        The PsychoPy window.
+    stop_gaze_data : callable
+        Function to call to stop gaze data collection.
+
+    Returns
+    -------
+    bool
+        True if 'c' was pressed to continue, False otherwise.
+
+    Raises
+    ------
+    KeyboardInterrupt
+        If 'q' was pressed to quit.
+
+    """
     keys = event.getKeys(keyList=['q', 'c'])
     if 'q' in keys:
         cleanup(psycho_win, stop_gaze_data)
@@ -115,19 +176,44 @@ def handle_user_input(psycho_win: visual.Window, stop_gaze_data) -> bool:
 
 
 def cleanup(psycho_win: visual.Window, stop_gaze_data) -> None:
-    """Clean up resources."""
+    """
+    Clean up resources.
+
+    Parameters
+    ----------
+    psycho_win : visual.Window
+        The PsychoPy window to close.
+    stop_gaze_data : callable
+        Function to call to stop gaze data collection.
+
+    """
     stop_gaze_data()
     psycho_win.close()
     core.quit()
 
 
 def draw_eye_positions(tracker, psycho_win: visual.Window):
-    """Main function for drawing eye positions."""
+    """
+    Main function for drawing eye positions.
+
+    Displays a real-time view of eye positions in the trackbox
+    and provides feedback on viewing distance.
+
+    Parameters
+    ----------
+    tracker : object
+        Eye tracker object with trackboxEyePos() and getAvgEyeDist() methods.
+    psycho_win : visual.Window
+        The PsychoPy window to draw in.
+
+    """
     validate_window(psycho_win)
 
     # Create visual elements
     rect_scale = tracker.tb2Ada(WINDOW_CONFIG['rect_scale'])
     eye_area, left_eye, right_eye, message = create_visual_elements(psycho_win, rect_scale)
+
+    
 
     while True:
         # Update eye positions and distance
@@ -148,17 +234,45 @@ def draw_eye_positions(tracker, psycho_win: visual.Window):
         # Handle user input
         if handle_user_input(psycho_win, tracker.stopGazeData):
             return
-
         event.clearEvents(eventType='keyboard')
 
 
 def get_default_validation_points() -> dict[str, tuple[float, float]]:
-    """Get default 5-point validation configuration."""
+    """
+    Get default 5-point validation configuration.
+
+    Returns
+    -------
+    dict[str, tuple[float, float]]
+        Dictionary mapping point names to (x, y) coordinates in normalized space.
+
+    """
     return {'1': (0.1, 0.1), '2': (0.9, 0.1), '3': (0.5, 0.5), '4': (0.1, 0.9), '5': (0.9, 0.9)}
 
 
 def run_validation(tracker, point_dict: dict | None = None):
-    """Run validation after calibration."""
+    """
+    Run validation after calibration.
+
+    Displays validation points and current gaze position to verify
+    calibration accuracy.
+
+    Parameters
+    ----------
+    tracker : object
+        Eye tracker object with validation methods.
+    point_dict : dict, optional
+        Dictionary mapping point names to (x, y) coordinates.
+        If None, uses default 5-point configuration.
+
+    Raises
+    ------
+    ValueError
+        If no experimental monitor is specified.
+    TypeError
+        If point_dict is not a dictionary.
+
+    """
     if tracker.win is None:
         msg = 'No experimental monitor specified. Try running set_monitor().'
         raise ValueError(msg)
