@@ -1,7 +1,7 @@
 vs:
   width: 800
   height: 600
-  fullscreen: false
+  fullscreen: true
   rows: 4
   cols: 4
   total_trials: 2
@@ -21,16 +21,16 @@ surveys:
 mot:
   width: 800
   height: 600
-  fullscreen: false
+  fullscreen: true
   num_objects: 15
   num_targets: 3
   radius: 25
   total_trials: 2
   speed: 4.0
-  fixation_time: 1000 # (ms)
-  target_display_time: 2000 # (ms)
+  fixation_time: 1.0 # (s)
+  target_display_time: 2.0
   trial_time: 6.0 # (s)
-  post_trial_pause: 2000 # (ms)
+  post_trial_pause: 2.0 # (s)
   output_file: 'mot_results.csv'
   background_color: [120, 120, 120] # gray
   fixation_color: [0, 0, 0] # black
