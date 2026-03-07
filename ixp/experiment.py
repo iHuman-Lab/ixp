@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 import ray
 
+from .instruction import InstructionScreen
 from .task import Task
 
 if TYPE_CHECKING:
@@ -156,6 +157,7 @@ class Experiment:
         task_config: dict[str, Any],
         order: int = 0,
         is_practice: bool = False,  # noqa: FBT001, FBT002
+        instructions: list[str] | str | None = None,
     ) -> None:
         """
         Register a task with the experiment.
@@ -172,6 +174,9 @@ class Experiment:
             Execution order (lower values execute first). Default is 0.
         is_practice : bool, optional
             If True, registers as a practice task. Default is False.
+        instructions : list[str] | str | None, optional
+            Instruction text to display before this task runs. A single string
+            or a list of strings (shown as separate pages). Default is None.
 
         Raises
         ------
@@ -185,10 +190,12 @@ class Experiment:
 
         task_actor = ray.remote(task_cls).remote(**task_config)
 
+        pages = [instructions] if isinstance(instructions, str) else (instructions or [])
+
         if is_practice:
-            self.practice_tasks.append((name, task_actor, order))
+            self.practice_tasks.append((name, task_actor, order, pages))
         else:
-            self.tasks.append((name, task_actor, order))
+            self.tasks.append((name, task_actor, order, pages))
 
     def register_sensor(
         self,
@@ -246,12 +253,12 @@ class Experiment:
         try:
             # 2. Run practice tasks
             if self.config.get('run_practice', False):
-                for task_name, task_actor, _ in practice_tasks:
-                    self._run_task(task_name, task_actor)
+                for task_name, task_actor, _, pages in practice_tasks:
+                    self._run_task(task_name, task_actor, pages)
 
             # 3. Run main tasks
-            for task_name, task_actor, _ in main_tasks:
-                self._run_task(task_name, task_actor)
+            for task_name, task_actor, _, pages in main_tasks:
+                self._run_task(task_name, task_actor, pages)
         finally:
             # 4. Stop sensors (always executed, even on task failure)
             for sensor in self.sensors.values():
@@ -259,7 +266,12 @@ class Experiment:
 
         logger.info('Experiment finished')
 
-    def _run_task(self, task_name: str, task_actor: ray.actor.ActorHandle) -> None:
+    def _run_task(
+        self,
+        task_name: str,
+        task_actor: ray.actor.ActorHandle,
+        instructions: list[str] | None = None,
+    ) -> None:
         """
         Run a single task and synchronize sensors.
 
@@ -269,9 +281,19 @@ class Experiment:
             Name of the task to run.
         task_actor : ray.actor.ActorHandle
             Ray actor handle for the task.
+        instructions : list[str] | None, optional
+            Pages of instruction text to display before the task runs.
 
         """
         logger.info(f'Running task: {task_name}')
+
+        # Show instructions before the task if provided
+        if instructions:
+            from psychopy import visual
+
+            win = visual.Window(fullscr=True, color='black', units='height')
+            InstructionScreen(win).show_pages(instructions)
+            win.close()
 
         # Notify sensors of task context
         for sensor in self.sensors.values():

@@ -73,9 +73,24 @@ with skip_run('skip', 'multi_object_tracking') as check, check():
 
     # Create an instance of Experiment
     experiment = Experiment(config)
-    # Register a practice task
-    experiment.add_task(name='sart', task_cls=SART, task_config={'config': config['surveys']}, order=1)
-    experiment.add_task(name='nasa_tlx', task_cls=NasaTLX, task_config={'config': config['surveys']}, order=2)
+
+    experiment.add_task(
+        name='sart',
+        task_cls=SART,
+        task_config={'config': config['surveys']},
+        order=1,
+        instructions=[
+            'Welcome to the experiment!\n\nIn this session you will complete two short surveys.',
+            'Survey 1: SART\n\nYou will see a series of numbers. Press SPACE for every number except 3.',
+        ],
+    )
+    experiment.add_task(
+        name='nasa_tlx',
+        task_cls=NasaTLX,
+        task_config={'config': config['surveys']},
+        order=2,
+        instructions='Survey 2: NASA-TLX\n\nYou will rate your mental workload across several dimensions.\n\nPress SPACE to begin.',
+    )
 
     # Run the experiment
     experiment.run()

@@ -52,7 +52,6 @@ def validate_window(psycho_win: visual.Window) -> None:
 
 def create_visual_elements(psycho_win: visual.Window, rect_scale: tuple[float, float]):
     """Create all visual elements needed for eye tracking."""
-
     # Create viewing area
     eye_area = visual.Rect(
         psycho_win,
@@ -212,8 +211,6 @@ def draw_eye_positions(tracker, psycho_win: visual.Window):
     # Create visual elements
     rect_scale = tracker.tb2Ada(WINDOW_CONFIG['rect_scale'])
     eye_area, left_eye, right_eye, message = create_visual_elements(psycho_win, rect_scale)
-
-    
 
     while True:
         # Update eye positions and distance

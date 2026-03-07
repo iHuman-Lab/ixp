@@ -7,7 +7,7 @@ authors = [
 ]
 readme = "README.md"
 license = "MIT"
-repository = "https://github.com/elaheoveisi/ixp"
+repository = "https://github.com/iHuman-Lab/ixp"
 keywords = ["experiments", "behavioral", "psychology", "eye-tracking", "lsl"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -25,6 +25,7 @@ pydantic = "^2.9"
 ray = "^2.9"
 pygame = "^2.5"
 pylsl = "^1.16"
+psychopy = "*"
 
 
 [tool.poetry.group.test.dependencies]
