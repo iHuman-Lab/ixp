@@ -6,11 +6,14 @@ import time
 from typing import TYPE_CHECKING, Any
 
 import ray
+from psychopy import visual
 
 from .instruction import InstructionScreen
 from .task import Task
+from .utils import save_task_results
 
 if TYPE_CHECKING:
+    from .lab_recorder import LabRecorderClient
     from .sensors.base_sensor import Sensor
 
 logging.basicConfig(level=logging.INFO)
@@ -144,13 +147,20 @@ class Experiment:
 
     """
 
-    def __init__(self, config: dict[str, Any]):
+    def __init__(
+        self,
+        config: dict[str, Any],
+        participant_info: dict[str, str] | None = None,
+        lab_recorder: LabRecorderClient | None = None,
+    ):
         self.config = config
-        self.tasks: list[tuple[str, ray.actor.ActorHandle]] = []
-        self.practice_tasks: list[tuple[str, ray.actor.ActorHandle]] = []
+        self.tasks: list[tuple] = []
+        self.practice_tasks: list[tuple] = []
         self.sensors: dict[str, ray.actor.ActorHandle] = {}
+        self.participant_info: dict[str, str] = participant_info or {}
+        self._lab_recorder = lab_recorder
 
-    def add_task(
+    def add_task(  # noqa: PLR0913
         self,
         name: str,
         task_cls: type,
@@ -188,14 +198,13 @@ class Experiment:
             msg = 'task_cls must inherit from Task'
             raise TypeError(msg)
 
-        task_actor = ray.remote(task_cls).remote(**task_config)
-
         pages = [instructions] if isinstance(instructions, str) else (instructions or [])
 
+        # Store class + config; actor is created in run() so participant_info can be injected
         if is_practice:
-            self.practice_tasks.append((name, task_actor, order, pages))
+            self.practice_tasks.append((name, task_cls, task_config, order, pages))
         else:
-            self.tasks.append((name, task_actor, order, pages))
+            self.tasks.append((name, task_cls, task_config, order, pages))
 
     def register_sensor(
         self,
@@ -226,45 +235,10 @@ class Experiment:
             sample_interval=sample_interval,
         )
 
-    def run(self) -> None:
-        """
-        Run the full experiment.
-
-        Raises
-        ------
-        ValueError
-            If no tasks are registered
-
-        """
-        if not self.tasks and not self.practice_tasks:
-            msg = 'No tasks registered. Use add_task() before running.'
-            raise ValueError(msg)
-
-        logger.info('Starting experiment')
-
-        # Sort tasks by order
-        practice_tasks = sorted(self.practice_tasks, key=lambda x: x[2])
-        main_tasks = sorted(self.tasks, key=lambda x: x[2])
-
-        # 1. Start sensors (parallel, non-blocking)
-        for sensor in self.sensors.values():
-            sensor.start.remote()
-
-        try:
-            # 2. Run practice tasks
-            if self.config.get('run_practice', False):
-                for task_name, task_actor, _, pages in practice_tasks:
-                    self._run_task(task_name, task_actor, pages)
-
-            # 3. Run main tasks
-            for task_name, task_actor, _, pages in main_tasks:
-                self._run_task(task_name, task_actor, pages)
-        finally:
-            # 4. Stop sensors (always executed, even on task failure)
-            for sensor in self.sensors.values():
-                sensor.stop.remote()
-
-        logger.info('Experiment finished')
+    def _dispatch_task(self, entry: tuple) -> None:
+        task_name, task_cls, task_config, _, pages = entry
+        task_actor = ray.remote(task_cls).remote(**{**task_config, **self.participant_info})
+        self._run_task(task_name, task_actor, pages)
 
     def _run_task(
         self,
@@ -289,8 +263,6 @@ class Experiment:
 
         # Show instructions before the task if provided
         if instructions:
-            from psychopy import visual
-
             win = visual.Window(fullscr=True, color='black', units='height')
             InstructionScreen(win).show_pages(instructions)
             win.close()
@@ -299,8 +271,62 @@ class Experiment:
         for sensor in self.sensors.values():
             sensor.set_task.remote(task_name)
 
-        # Execute task (blocking)
-        ray.get(task_actor.execute.remote())
+        # Execute task (blocking) and collect results
+        results = ray.get(task_actor.execute.remote())
+
+        # Save to CSV if the task returned row data (non-streaming tasks)
+        if results and isinstance(results, list) and isinstance(results[0], dict):
+            save_task_results(task_name, results, self.participant_info)
+
+    def run(self) -> None:
+        """
+        Run the full experiment.
+
+        Raises
+        ------
+        ValueError
+            If no tasks are registered
+
+        """
+        if not self.tasks and not self.practice_tasks:
+            msg = 'No tasks registered. Use add_task() before running.'
+            raise ValueError(msg)
+
+        logger.info('Starting experiment')
+
+        # Sort tasks by order
+        practice_tasks = sorted(self.practice_tasks, key=lambda x: x[3])
+        main_tasks = sorted(self.tasks, key=lambda x: x[3])
+
+        # Configure and start LabRecorder if connected
+        if self._lab_recorder:
+            self._lab_recorder.set_filename(
+                subject_id=self.participant_info.get('subject_id', 'unknown'),
+                session_id=self.participant_info.get('session_id', '1'),
+            )
+            self._lab_recorder.start()
+
+        # 1. Start sensors (parallel, non-blocking)
+        for sensor in self.sensors.values():
+            sensor.start.remote()
+
+        try:
+            # 2. Run practice tasks
+            if self.config.get('run_practice', False):
+                for entry in practice_tasks:
+                    self._dispatch_task(entry)
+
+            # 3. Run main tasks
+            for entry in main_tasks:
+                self._dispatch_task(entry)
+        finally:
+            # 4. Stop sensors and LabRecorder (always executed, even on task failure)
+            for sensor in self.sensors.values():
+                sensor.stop.remote()
+            if self._lab_recorder:
+                self._lab_recorder.stop()
+
+        logger.info('Experiment finished')
 
     def close(self) -> None:
         """

@@ -7,6 +7,8 @@ import yaml
 
 from ixp.experiment import Experiment
 from ixp.individual_difference import MOT, VS
+from ixp.lab_recorder import LabRecorderClient
+from ixp.participant import collect_participant_info
 from ixp.surveys.nasa_tlx import NasaTLX
 from ixp.surveys.sart import SART
 from tests.examples import ExampleSensor, ExampleTask
@@ -71,8 +73,12 @@ with skip_run('skip', 'individual_difference') as check, check():
 with skip_run('skip', 'multi_object_tracking') as check, check():
     ray.init(ignore_reinit_error=True, _system_config={'metrics_report_interval_ms': 0})
 
+    # Collect participant info and connect to LabRecorder
+    info = collect_participant_info()
+    recorder = LabRecorderClient()
+
     # Create an instance of Experiment
-    experiment = Experiment(config)
+    experiment = Experiment(config, participant_info=info, lab_recorder=recorder)
 
     experiment.add_task(
         name='sart',

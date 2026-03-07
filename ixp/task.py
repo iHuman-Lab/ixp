@@ -276,14 +276,18 @@ class Block:
         if order == 'random':
             random.shuffle(trials_list)
 
+        results = []
         for trial in trials_list:
             trial.initialize()
             if isinstance(trial, LSLTrial):
                 with StreamGuard(trial):
                     trial.execute()
             else:
-                trial.execute()
+                result = trial.execute()
+                if result is not None:
+                    results.append(result)
             trial.clean_up()
+        return results
 
 
 class Task(ABC):

@@ -125,7 +125,7 @@ class MOTTrial(Trial):
         core.wait(2.0)
         return selected
 
-    def execute(self) -> int:
+    def execute(self) -> dict:
         """Main trial logic loop."""
         # 1. Target Phase (Show targets)
         self._target_phase()
@@ -135,7 +135,13 @@ class MOTTrial(Trial):
 
         # 3. Selection Phase
         selected = self._selection_phase()
-        return sum(1 for c in selected if c['is_target'])
+        correct = sum(1 for c in selected if c['is_target'])
+        return {
+            'trial_id': self.trial_id,
+            'num_targets': self.num_targets,
+            'correct': correct,
+            'accuracy': correct / self.num_targets if self.num_targets > 0 else 0.0,
+        }
 
     def clean_up(self):
         """Clear references to stimuli to free memory."""
@@ -168,8 +174,7 @@ class MOT(Task):
         try:
             results = []
             for block in self.blocks:
-                block_results = block.execute(order)
-                results.append(block_results)
+                results.extend(block.execute(order))
             return results
         finally:
             self.config['_window'].close()
