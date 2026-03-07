@@ -52,7 +52,7 @@ class SART(Task):
         win = visual.Window(
             size=self.cfg.get('size', [1200, 950]),  # Taller window recommended for 9 questions
             fullscr=self.cfg.get('fullscreen', False),
-            color=[-0.6, -0.6, -0.6],
+            color=[-0.8, -0.8, -0.8],
             units='height',
         )
 

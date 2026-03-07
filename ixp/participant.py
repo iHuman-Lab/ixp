@@ -61,14 +61,20 @@ def collect_participant_info(fields: dict[str, str] | None = None) -> dict[str, 
     >>> info = collect_participant_info({'subject_id': '', 'session_id': '1', 'age': ''})
 
     """
-    fields = fields or {'subject_id': '', 'session_id': '1'}
+    fields = fields or {'subject_id': '0000', 'session_id': '1'}
     title = 'Participant Info'
 
     while True:
-        dlg = gui.DlgFromDict(fields, title=title, order=list(fields.keys()))
+        dlg = gui.Dlg(title=title)
+        for key in fields:
+            dlg.addField(key + ':', fields[key])
+        dlg.show()
         if not dlg.OK:
             msg = 'Experiment cancelled by user.'
             raise SystemExit(msg)
+
+        for key, val in zip(list(fields.keys()), dlg.data):
+            fields[key] = val
 
         subject_id = fields['subject_id']
         session_id = fields['session_id']

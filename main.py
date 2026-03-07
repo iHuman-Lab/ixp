@@ -7,7 +7,6 @@ import yaml
 
 from ixp.experiment import Experiment
 from ixp.individual_difference import MOT, VS
-from ixp.lab_recorder import LabRecorderClient
 from ixp.participant import collect_participant_info
 from ixp.surveys.nasa_tlx import NasaTLX
 from ixp.surveys.sart import SART
@@ -70,12 +69,11 @@ with skip_run('skip', 'individual_difference') as check, check():
     experiment.close()
 
 
-with skip_run('skip', 'multi_object_tracking') as check, check():
+with skip_run('run', 'multi_object_tracking') as check, check():
     ray.init(ignore_reinit_error=True, _system_config={'metrics_report_interval_ms': 0})
 
-    # Collect participant info and connect to LabRecorder
     info = collect_participant_info()
-    recorder = LabRecorderClient()
+    recorder = None
 
     # Create an instance of Experiment
     experiment = Experiment(config, participant_info=info, lab_recorder=recorder)
@@ -87,7 +85,7 @@ with skip_run('skip', 'multi_object_tracking') as check, check():
         order=1,
         instructions=[
             'Welcome to the experiment!\n\nIn this session you will complete two short surveys.',
-            'Survey 1: SART\n\nYou will see a series of numbers. Press SPACE for every number except 3.',
+            'Survey 1: SART\n\nYou will see a series of numbers.',
         ],
     )
     experiment.add_task(
@@ -95,7 +93,7 @@ with skip_run('skip', 'multi_object_tracking') as check, check():
         task_cls=NasaTLX,
         task_config={'config': config['surveys']},
         order=2,
-        instructions='Survey 2: NASA-TLX\n\nYou will rate your mental workload across several dimensions.\n\nPress SPACE to begin.',
+        instructions='Survey 2: NASA-TLX\n\nYou will rate your mental workload across several dimensions.',
     )
 
     # Run the experiment

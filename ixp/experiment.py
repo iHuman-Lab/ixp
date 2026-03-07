@@ -237,7 +237,7 @@ class Experiment:
 
     def _dispatch_task(self, entry: tuple) -> None:
         task_name, task_cls, task_config, _, pages = entry
-        task_actor = ray.remote(task_cls).remote(**{**task_config, **self.participant_info})
+        task_actor = ray.remote(task_cls).remote(**task_config)
         self._run_task(task_name, task_actor, pages)
 
     def _run_task(
