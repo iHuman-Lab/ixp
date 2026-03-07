@@ -13,7 +13,7 @@ from .task import Task
 from .utils import save_task_results
 
 if TYPE_CHECKING:
-    from .lab_recorder import LabRecorderClient
+    from .recorder.recorder import Recorder
     from .sensors.base_sensor import Sensor
 
 logging.basicConfig(level=logging.INFO)
@@ -150,15 +150,18 @@ class Experiment:
     def __init__(
         self,
         config: dict[str, Any],
-        participant_info: dict[str, str] | None = None,
-        lab_recorder: LabRecorderClient | None = None,
+        recorder: Recorder | None = None,
     ):
         self.config = config
         self.tasks: list[tuple] = []
         self.practice_tasks: list[tuple] = []
         self.sensors: dict[str, ray.actor.ActorHandle] = {}
-        self.participant_info: dict[str, str] = participant_info or {}
-        self._lab_recorder = lab_recorder
+        self._recorder = recorder
+
+    @property
+    def participant_info(self) -> dict[str, str]:
+        """Participant info collected by the recorder dialog."""
+        return self._recorder.participant_info if self._recorder else {}
 
     def add_task(  # noqa: PLR0913
         self,
@@ -298,13 +301,8 @@ class Experiment:
         practice_tasks = sorted(self.practice_tasks, key=lambda x: x[3])
         main_tasks = sorted(self.tasks, key=lambda x: x[3])
 
-        # Configure and start LabRecorder if connected
-        if self._lab_recorder:
-            self._lab_recorder.set_filename(
-                subject_id=self.participant_info.get('subject_id', 'unknown'),
-                session_id=self.participant_info.get('session_id', '1'),
-            )
-            self._lab_recorder.start()
+        if self._recorder:
+            self._recorder.start()
 
         # 1. Start sensors (parallel, non-blocking)
         for sensor in self.sensors.values():
@@ -323,8 +321,8 @@ class Experiment:
             # 4. Stop sensors and LabRecorder (always executed, even on task failure)
             for sensor in self.sensors.values():
                 sensor.stop.remote()
-            if self._lab_recorder:
-                self._lab_recorder.stop()
+            if self._recorder:
+                self._recorder.stop()
 
         logger.info('Experiment finished')
 

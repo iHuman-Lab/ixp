@@ -7,7 +7,6 @@ import yaml
 
 from ixp.experiment import Experiment
 from ixp.individual_difference import MOT, VS
-from ixp.participant import collect_participant_info
 from ixp.surveys.nasa_tlx import NasaTLX
 from ixp.surveys.sart import SART
 from tests.examples import ExampleSensor, ExampleTask
@@ -69,14 +68,10 @@ with skip_run('skip', 'individual_difference') as check, check():
     experiment.close()
 
 
-with skip_run('run', 'multi_object_tracking') as check, check():
+with skip_run('skip', 'multi_object_tracking') as check, check():
     ray.init(ignore_reinit_error=True, _system_config={'metrics_report_interval_ms': 0})
 
-    info = collect_participant_info()
-    recorder = None
-
-    # Create an instance of Experiment
-    experiment = Experiment(config, participant_info=info, lab_recorder=recorder)
+    experiment = Experiment(config)
 
     experiment.add_task(
         name='sart',
@@ -100,3 +95,33 @@ with skip_run('run', 'multi_object_tracking') as check, check():
     experiment.run()
 
     experiment.close()
+
+
+with skip_run('run', 'lab_recorder') as check, check():
+    import threading
+    import time
+
+    import pylsl
+
+    from ixp.recorder import Recorder
+
+    # ── Dummy LSL streams ──────────────────────────────────────────────────
+    def _push_stream(name: str, stype: str, n_ch: int, srate: float) -> None:
+        info = pylsl.StreamInfo(name, stype, n_ch, srate, 'float32', f'dummy-{name}')
+        outlet = pylsl.StreamOutlet(info)
+        sample = [0.0] * n_ch
+        while True:
+            outlet.push_sample(sample)
+            time.sleep(1.0 / srate if srate > 0 else 1.0)
+
+    for _name, _type, _ch, _rate in [
+        ('EEG', 'EEG', 8, 256.0),
+        ('Markers', 'Markers', 1, 0.0),
+    ]:
+        threading.Thread(target=_push_stream, args=(_name, _type, _ch, _rate), daemon=True).start()
+
+    time.sleep(0.5)  # let outlets register before resolver runs
+
+    # ── Recorder ──────────────────────────────────────────────────────────
+    recorder = Recorder()
+    recorder.start()
