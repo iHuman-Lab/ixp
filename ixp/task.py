@@ -312,6 +312,10 @@ class Task(ABC):
         self.config = config
         self.blocks: list[Block] = []
 
+    def is_ready(self) -> bool:
+        """Return True once the actor is initialised (used as a Ray sync barrier)."""
+        return True
+
     def initial_setup(self):  # noqa: B027
         """
         Perform initial setup before task execution.

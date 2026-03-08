@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import ray
 from psychopy import visual
@@ -13,11 +13,18 @@ from .task import Task
 from .utils import save_task_results
 
 if TYPE_CHECKING:
-    from .recorder.recorder import Recorder
     from .sensors.base_sensor import Sensor
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+class TaskEntry(NamedTuple):
+    order: int
+    name: str
+    task_cls: type
+    task_config: dict[str, Any]
+    pages: list[str]
 
 
 # RemoteSensor handles sensor recording and streaming
@@ -147,21 +154,11 @@ class Experiment:
 
     """
 
-    def __init__(
-        self,
-        config: dict[str, Any],
-        recorder: Recorder | None = None,
-    ):
+    def __init__(self, config: dict[str, Any]):
         self.config = config
-        self.tasks: list[tuple] = []
-        self.practice_tasks: list[tuple] = []
+        self.tasks: list[TaskEntry] = []
+        self.practice_tasks: list[TaskEntry] = []
         self.sensors: dict[str, ray.actor.ActorHandle] = {}
-        self._recorder = recorder
-
-    @property
-    def participant_info(self) -> dict[str, str]:
-        """Participant info collected by the recorder dialog."""
-        return self._recorder.participant_info if self._recorder else {}
 
     def add_task(  # noqa: PLR0913
         self,
@@ -203,11 +200,11 @@ class Experiment:
 
         pages = [instructions] if isinstance(instructions, str) else (instructions or [])
 
-        # Store class + config; actor is created in run() so participant_info can be injected
+        entry = TaskEntry(order=order, name=name, task_cls=task_cls, task_config=task_config, pages=pages)
         if is_practice:
-            self.practice_tasks.append((name, task_cls, task_config, order, pages))
+            self.practice_tasks.append(entry)
         else:
-            self.tasks.append((name, task_cls, task_config, order, pages))
+            self.tasks.append(entry)
 
     def register_sensor(
         self,
@@ -238,10 +235,11 @@ class Experiment:
             sample_interval=sample_interval,
         )
 
-    def _dispatch_task(self, entry: tuple) -> None:
-        task_name, task_cls, task_config, _, pages = entry
-        task_actor = ray.remote(task_cls).remote(**task_config)
-        self._run_task(task_name, task_actor, pages)
+    def _create_actors(self, entries: list[TaskEntry]) -> dict[str, ray.actor.ActorHandle]:
+        """Create Ray actors for all entries and block until they are ready."""
+        actors = {e.name: ray.remote(e.task_cls).remote(**e.task_config) for e in entries}
+        ray.get([a.is_ready.remote() for a in actors.values()])
+        return actors
 
     def _run_task(
         self,
@@ -279,7 +277,7 @@ class Experiment:
 
         # Save to CSV if the task returned row data (non-streaming tasks)
         if results and isinstance(results, list) and isinstance(results[0], dict):
-            save_task_results(task_name, results, self.participant_info)
+            save_task_results(task_name, results, {})
 
     def run(self) -> None:
         """
@@ -297,32 +295,26 @@ class Experiment:
 
         logger.info('Starting experiment')
 
-        # Sort tasks by order
-        practice_tasks = sorted(self.practice_tasks, key=lambda x: x[3])
-        main_tasks = sorted(self.tasks, key=lambda x: x[3])
+        practice_tasks = sorted(self.practice_tasks)
+        main_tasks = sorted(self.tasks)
 
-        if self._recorder:
-            self._recorder.start()
+        run_practice = self.config.get('run_practice', False)
+        all_entries = (practice_tasks if run_practice else []) + main_tasks
+        actors = self._create_actors(all_entries)
 
-        # 1. Start sensors (parallel, non-blocking)
         for sensor in self.sensors.values():
             sensor.start.remote()
 
         try:
-            # 2. Run practice tasks
-            if self.config.get('run_practice', False):
+            if run_practice:
                 for entry in practice_tasks:
-                    self._dispatch_task(entry)
+                    self._run_task(entry.name, actors[entry.name], entry.pages)
 
-            # 3. Run main tasks
             for entry in main_tasks:
-                self._dispatch_task(entry)
+                self._run_task(entry.name, actors[entry.name], entry.pages)
         finally:
-            # 4. Stop sensors and LabRecorder (always executed, even on task failure)
             for sensor in self.sensors.values():
                 sensor.stop.remote()
-            if self._recorder:
-                self._recorder.stop()
 
         logger.info('Experiment finished')
 

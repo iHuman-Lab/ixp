@@ -103,8 +103,6 @@ with skip_run('run', 'lab_recorder') as check, check():
 
     import pylsl
 
-    from ixp.recorder import Recorder
-
     # ── Dummy LSL streams ──────────────────────────────────────────────────
     def _push_stream(name: str, stype: str, n_ch: int, srate: float) -> None:
         info = pylsl.StreamInfo(name, stype, n_ch, srate, 'float32', f'dummy-{name}')
@@ -114,14 +112,17 @@ with skip_run('run', 'lab_recorder') as check, check():
             outlet.push_sample(sample)
             time.sleep(1.0 / srate if srate > 0 else 1.0)
 
-    for _name, _type, _ch, _rate in [
-        ('EEG', 'EEG', 8, 256.0),
-        ('Markers', 'Markers', 1, 0.0),
-    ]:
-        threading.Thread(target=_push_stream, args=(_name, _type, _ch, _rate), daemon=True).start()
+    threads = [
+        threading.Thread(target=_push_stream, args=(_name, _type, _ch, _rate), daemon=True)
+        for _name, _type, _ch, _rate in [
+            ('EEG', 'EEG', 8, 256.0),
+            ('Markers', 'Markers', 1, 0.0),
+        ]
+    ]
+    for t in threads:
+        t.start()
 
     time.sleep(0.5)  # let outlets register before resolver runs
 
-    # ── Recorder ──────────────────────────────────────────────────────────
-    recorder = Recorder()
-    recorder.start()
+    for t in threads:
+        t.join()
