@@ -270,7 +270,9 @@ class Experiment:
 
         # Show instructions before the task if provided
         if instructions:
-            win = visual.Window(fullscr=False, color='black', units='height', checkTiming=False)
+            screen = self.config.get('game', {}).get('display', 0)
+            fullscr = self.config.get('game', {}).get('fullscreen', False)
+            win = visual.Window(fullscr=fullscr, color='black', units='height', checkTiming=False, screen=screen)
             InstructionScreen(win).show_pages(instructions)
             win.close()
 

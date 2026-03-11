@@ -87,6 +87,7 @@ class SART(Task):
                 "size", [1200, 950]
             ),  # Taller window recommended for 9 questions
             fullscr=self.cfg.get("fullscreen", False),
+            screen=self.cfg.get("display", 0),
             color=[-0.8, -0.8, -0.8],
             units="height",
             checkTiming=False,

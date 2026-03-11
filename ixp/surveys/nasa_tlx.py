@@ -76,6 +76,7 @@ class NasaTLX(Task):
         win = visual.Window(
             size=self.cfg.get("size", [1100, 800]),
             fullscr=self.cfg.get("fullscreen", False),
+            screen=self.cfg.get("display", 0),
             color=[-0.8, -0.8, -0.8],  # Slightly lighter grey for contrast
             units="height",  # This is key for proportional scaling
             checkTiming=False,
