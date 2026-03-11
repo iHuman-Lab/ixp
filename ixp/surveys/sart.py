@@ -13,15 +13,45 @@ from .utils import build_ui
 
 # Full SART Questions
 QUESTIONS = [
-    ('Instability', 'How changeable is the situation? Is it unstable or stable?', 'Unstable', 'Stable'),
-    ('Complexity', 'How complicated is the situation? Complex or simple?', 'Complex', 'Simple'),
-    ('Variability', 'How many factors are changing? Many or few?', 'Many', 'Few'),
-    ('Arousal', 'How alert/ready are you? High alertness or low?', 'High', 'Low'),
-    ('Concentration', 'How much are you concentrating? Many aspects or one?', 'Many', 'Few'),
-    ('Division', 'How divided is your attention?', 'High', 'Low'),
-    ('Spare Capacity', 'How much mental capacity is left? Sufficient or none?', 'Sufficient', 'None'),
-    ('Information', 'How much info have you gained? Great deal or very little?', 'High', 'Low'),
-    ('Familiarity', 'How familiar are you with the experience', 'Familiar', 'Not Familiar'),
+    (
+        "Instability",
+        "How changeable is the situation? Is it unstable or stable?",
+        "Unstable",
+        "Stable",
+    ),
+    (
+        "Complexity",
+        "How complicated is the situation? Complex or simple?",
+        "Complex",
+        "Simple",
+    ),
+    ("Variability", "How many factors are changing? Many or few?", "Many", "Few"),
+    ("Arousal", "How alert/ready are you? High alertness or low?", "High", "Low"),
+    (
+        "Concentration",
+        "How much are you concentrating? Many aspects or one?",
+        "Many",
+        "Few",
+    ),
+    ("Division", "How divided is your attention?", "High", "Low"),
+    (
+        "Spare Capacity",
+        "How much mental capacity is left? Sufficient or none?",
+        "Sufficient",
+        "None",
+    ),
+    (
+        "Information",
+        "How much info have you gained? Great deal or very little?",
+        "High",
+        "Low",
+    ),
+    (
+        "Familiarity",
+        "How familiar are you with the experience",
+        "Familiar",
+        "Not Familiar",
+    ),
 ]
 
 
@@ -40,30 +70,38 @@ class SART(Task):
             instruction.draw()
             win.flip()
 
-            keys = event.getKeys(['space', 'escape'])
-            if 'escape' in keys:
+            keys = event.getKeys(["space", "escape"])
+            if "escape" in keys:
                 win.close()
                 core.quit()
-            if 'space' in keys:
+            if "space" in keys:
                 # Check if all sliders have been touched/rated
-                return {f'Q{idx + 1}_{QUESTIONS[idx][0]}': s.markerPos for idx, s in enumerate(sliders)}
+                return {
+                    f"Q{idx + 1}_{QUESTIONS[idx][0]}": s.markerPos
+                    for idx, s in enumerate(sliders)
+                }
 
     def execute(self) -> dict[str, Any]:
         win = visual.Window(
-            size=self.cfg.get('size', [1200, 950]),  # Taller window recommended for 9 questions
-            fullscr=self.cfg.get('fullscreen', False),
+            size=self.cfg.get(
+                "size", [1200, 950]
+            ),  # Taller window recommended for 9 questions
+            fullscr=self.cfg.get("fullscreen", False),
             color=[-0.8, -0.8, -0.8],
-            units='height',
+            units="height",
+            checkTiming=False,
         )
 
         ratings = self.show_all_questions(win)
 
-        results = {'Timestamp': datetime.now(tz=timezone.utc).isoformat(timespec='seconds')}
+        results = {
+            "Timestamp": datetime.now(tz=timezone.utc).isoformat(timespec="seconds")
+        }
         results.update(ratings)
 
         # Save to CSV
-        output_file = self.cfg.get('sart_save_path', 'sart_results.csv')
-        with Path(output_file).open('w', newline='') as f:
+        output_file = self.cfg.get("sart_save_path", "sart_results.csv")
+        with Path(output_file).open("w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=results.keys())
             writer.writeheader()
             writer.writerow(results)

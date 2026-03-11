@@ -64,14 +64,16 @@ class Trial(ABC):
         """
 
 
-class LSLTrial(ABC):
+class LSLTrial(Trial):
     """
     Base class for LSL streaming trials.
 
-    Subclasses must implement:
-    1. ``get_data_signature()`` to define the LSL stream format
-    2. ``read_data()`` to return current data to stream
-    3. ``execute()`` which must call ``self.stream()`` in the game loop
+    The parent task owns the LSL stream outlet. Subclasses must implement:
+    1. ``read_data()`` to return current data to stream
+    2. ``execute()`` which must call ``self.stream()`` in the game loop
+
+    The ``lsl_stream`` outlet is injected by ``Block.execute()`` before the
+    trial runs; subclasses do not create it themselves.
 
     Parameters
     ----------
@@ -87,38 +89,19 @@ class LSLTrial(ABC):
     parameters : dict[str, Any]
         Configuration parameters for the trial.
     lsl_stream : StreamOutlet | None
-        The LSL stream outlet for pushing data.
+        The LSL stream outlet injected by the task before execution.
 
     """
 
     def __init__(self, trial_id: str, parameters: dict[str, Any]):
-        self.trial_id = trial_id
-        self.parameters = parameters
+        super().__init__(trial_id, parameters)
         self.lsl_stream: StreamOutlet | None = None
-        self._has_streamed: bool = False
+        self._stream_called: bool = False
         self._samples_pushed: int = 0
-
-    def create_lsl_stream(self):
-        """
-        Create an LSL stream based on the data signature.
-
-        Uses the signature returned by ``get_data_signature()`` to configure
-        the LSL StreamInfo and create a StreamOutlet.
-        """
-        signature = self.get_data_signature()
-        info = StreamInfo(
-            name=signature['name'],
-            type=signature['type'],
-            channel_count=signature['channel_count'],
-            nominal_srate=signature['nominal_srate'],
-            channel_format=signature['channel_format'],
-            source_id=signature['source_id'],
-        )
-        self.lsl_stream = StreamOutlet(info)
 
     def stream(self):
         """
-        Read current data and push to LSL stream.
+        Read current data and push to the task's LSL stream.
 
         Call this method in your game loop during ``execute()``.
         It reads data via ``read_data()`` and pushes it to the LSL outlet.
@@ -126,11 +109,11 @@ class LSLTrial(ABC):
         Raises
         ------
         RuntimeError
-            If ``create_lsl_stream()`` was not called before streaming.
+            If the task has no LSL stream outlet.
 
         """
         if self.lsl_stream is None:
-            msg = 'LSL stream not created. Call create_lsl_stream() before stream().'
+            msg = f'LSLTrial "{self.trial_id}": no LSL stream outlet. Ensure the task defines get_data_signature().'
             raise RuntimeError(msg)
 
         self._stream_called = True
@@ -151,31 +134,6 @@ class LSLTrial(ABC):
         return self._samples_pushed > 0
 
     @abstractmethod
-    def get_data_signature(self) -> dict[str, Any]:
-        """
-        Return the LSL stream signature.
-
-        Returns
-        -------
-        dict[str, Any]
-            Dictionary containing LSL stream configuration with keys:
-
-            - name : str
-                Stream name.
-            - type : str
-                Stream type (e.g., 'Markers', 'EEG').
-            - channel_count : int
-                Number of channels.
-            - nominal_srate : float
-                Nominal sampling rate in Hz.
-            - channel_format : str
-                Data format (e.g., 'float32', 'string').
-            - source_id : str
-                Unique source identifier.
-
-        """
-
-    @abstractmethod
     def read_data(self) -> list[Any] | None:
         """
         Return current data to stream.
@@ -194,9 +152,8 @@ class LSLTrial(ABC):
         """
         Run the trial logic with LSL streaming.
 
-        Implementation must:
-        1. Call ``self.create_lsl_stream()`` at the start
-        2. Call ``self.stream()`` in the game loop to push data
+        Implementation must call ``self.stream()`` in the game loop to push data.
+        The ``lsl_stream`` outlet is set by the task before this is called.
 
         Returns
         -------
@@ -227,22 +184,22 @@ class Block:
     ----------
     block_id : str
         Unique identifier for the block.
-    trials : list[tuple[int, Trial | LSLTrial]]
+    trials : list[tuple[int, Trial]]
         List of (order, trial) tuples.
 
     """
 
     def __init__(self, block_id: str):
         self.block_id = block_id
-        self.trials: list[tuple[int, Trial | LSLTrial]] = []
+        self.trials: list[tuple[int, Trial]] = []
 
-    def add_trial(self, trial: Trial | LSLTrial, order: int):
+    def add_trial(self, trial: Trial, order: int):
         """
         Add a trial to the block.
 
         Parameters
         ----------
-        trial : Trial | LSLTrial
+        trial : Trial
             The trial instance to add.
         order : int
             Execution order (lower values execute first).
@@ -251,7 +208,7 @@ class Block:
         self.trials.append((order, trial))
         self.trials.sort(key=lambda x: x[0])
 
-    def execute(self, order: str = 'predefined'):
+    def execute(self, order: str = 'predefined', lsl_stream: StreamOutlet | None = None):
         """
         Execute all trials in the block.
 
@@ -264,6 +221,8 @@ class Block:
             - 'random' : Randomize trial order
 
             Default is 'predefined'.
+        lsl_stream : StreamOutlet | None, optional
+            The task-level LSL outlet to inject into each LSLTrial.
 
         Raises
         ------
@@ -280,6 +239,7 @@ class Block:
         for trial in trials_list:
             trial.initialize()
             if isinstance(trial, LSLTrial):
+                trial.lsl_stream = lsl_stream
                 with StreamGuard(trial):
                     trial.execute()
             else:
@@ -311,10 +271,40 @@ class Task(ABC):
     def __init__(self, config: dict[str, Any]):
         self.config = config
         self.blocks: list[Block] = []
+        self.lsl_stream: StreamOutlet | None = None
 
     def is_ready(self) -> bool:
         """Return True once the actor is initialised (used as a Ray sync barrier)."""
         return True
+
+    def get_data_signature(self) -> dict[str, Any] | None:
+        """
+        Return the LSL stream signature for this task, or None for no stream.
+
+        Override in subclass to define a task-level LSL stream. Returns a dict
+        with keys: name, type, channel_count, nominal_srate, channel_format, source_id.
+        """
+        return None
+
+    def create_lsl_stream(self):
+        """
+        Create the task-level LSL stream from ``get_data_signature()``.
+
+        Called automatically by ``Experiment.add_task()``. Does nothing if
+        ``get_data_signature()`` returns None.
+        """
+        signature = self.get_data_signature()
+        if signature is None:
+            return
+        info = StreamInfo(
+            name=signature['name'],
+            type=signature['type'],
+            channel_count=signature['channel_count'],
+            nominal_srate=signature['nominal_srate'],
+            channel_format=signature['channel_format'],
+            source_id=signature['source_id'],
+        )
+        self.lsl_stream = StreamOutlet(info)
 
     def initial_setup(self):  # noqa: B027
         """
@@ -358,7 +348,7 @@ class Task(ABC):
         """
         if self.blocks:
             for block in self.blocks:
-                block.execute(order)
+                block.execute(order, lsl_stream=self.lsl_stream)
         else:
             msg = 'execute() must be implemented in subclass for tasks without blocks'
             raise NotImplementedError(msg)

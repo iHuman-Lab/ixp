@@ -159,6 +159,7 @@ class Experiment:
         self.tasks: list[TaskEntry] = []
         self.practice_tasks: list[TaskEntry] = []
         self.sensors: dict[str, ray.actor.ActorHandle] = {}
+        self.actors: dict[str, ray.actor.ActorHandle] = {}
 
     def add_task(  # noqa: PLR0913
         self,
@@ -200,11 +201,22 @@ class Experiment:
 
         pages = [instructions] if isinstance(instructions, str) else (instructions or [])
 
-        entry = TaskEntry(order=order, name=name, task_cls=task_cls, task_config=task_config, pages=pages)
+        entry = TaskEntry(
+            order=order,
+            name=name,
+            task_cls=task_cls,
+            task_config=task_config,
+            pages=pages,
+        )
         if is_practice:
             self.practice_tasks.append(entry)
         else:
             self.tasks.append(entry)
+
+        actor = ray.remote(task_cls).remote(**task_config)
+        ray.get(actor.is_ready.remote())
+        ray.get(actor.create_lsl_stream.remote())  # no-op if get_data_signature() returns None
+        self.actors[name] = actor
 
     def register_sensor(
         self,
@@ -235,12 +247,6 @@ class Experiment:
             sample_interval=sample_interval,
         )
 
-    def _create_actors(self, entries: list[TaskEntry]) -> dict[str, ray.actor.ActorHandle]:
-        """Create Ray actors for all entries and block until they are ready."""
-        actors = {e.name: ray.remote(e.task_cls).remote(**e.task_config) for e in entries}
-        ray.get([a.is_ready.remote() for a in actors.values()])
-        return actors
-
     def _run_task(
         self,
         task_name: str,
@@ -264,9 +270,11 @@ class Experiment:
 
         # Show instructions before the task if provided
         if instructions:
-            win = visual.Window(fullscr=True, color='black', units='height')
+            win = visual.Window(fullscr=False, color='black', units='height', checkTiming=False)
             InstructionScreen(win).show_pages(instructions)
             win.close()
+
+        ray.get(task_actor.initial_setup.remote())
 
         # Notify sensors of task context
         for sensor in self.sensors.values():
@@ -299,8 +307,6 @@ class Experiment:
         main_tasks = sorted(self.tasks)
 
         run_practice = self.config.get('run_practice', False)
-        all_entries = (practice_tasks if run_practice else []) + main_tasks
-        actors = self._create_actors(all_entries)
 
         for sensor in self.sensors.values():
             sensor.start.remote()
@@ -308,10 +314,10 @@ class Experiment:
         try:
             if run_practice:
                 for entry in practice_tasks:
-                    self._run_task(entry.name, actors[entry.name], entry.pages)
+                    self._run_task(entry.name, self.actors[entry.name], entry.pages)
 
             for entry in main_tasks:
-                self._run_task(entry.name, actors[entry.name], entry.pages)
+                self._run_task(entry.name, self.actors[entry.name], entry.pages)
         finally:
             for sensor in self.sensors.values():
                 sensor.stop.remote()

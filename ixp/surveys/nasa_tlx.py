@@ -12,12 +12,37 @@ from ixp.task import Task
 from .utils import build_ui
 
 QUESTIONS = [
-    ('Mental Demand', 'How mentally demanding was the task?', 'Very Low', 'Very High'),
-    ('Physical Demand', 'How physically demanding was the task?', 'Very Low', 'Very High'),
-    ('Temporal Demand', 'How hurried or rushed was the pace of the task?', 'Very Low', 'Very High'),
-    ('Performance', 'How successful were you in accomplishing what you were asked to do?', 'Perfect', 'Failure'),
-    ('Effort', 'How hard did you have to work to accomplish your level of performance?', 'Very Low', 'Very High'),
-    ('Frustration', 'How insecure, discouraged, irritated, stressed, and annoyed were you?', 'Very Low', 'Very High'),
+    ("Mental Demand", "How mentally demanding was the task?", "Very Low", "Very High"),
+    (
+        "Physical Demand",
+        "How physically demanding was the task?",
+        "Very Low",
+        "Very High",
+    ),
+    (
+        "Temporal Demand",
+        "How hurried or rushed was the pace of the task?",
+        "Very Low",
+        "Very High",
+    ),
+    (
+        "Performance",
+        "How successful were you in accomplishing what you were asked to do?",
+        "Perfect",
+        "Failure",
+    ),
+    (
+        "Effort",
+        "How hard did you have to work to accomplish your level of performance?",
+        "Very Low",
+        "Very High",
+    ),
+    (
+        "Frustration",
+        "How insecure, discouraged, irritated, stressed, and annoyed were you?",
+        "Very Low",
+        "Very High",
+    ),
 ]
 
 
@@ -36,30 +61,36 @@ class NasaTLX(Task):
             instruction.draw()
             win.flip()
 
-            keys = event.getKeys(['space', 'escape'])
-            if 'escape' in keys:
+            keys = event.getKeys(["space", "escape"])
+            if "escape" in keys:
                 win.close()
                 core.quit()
-            if 'space' in keys:
+            if "space" in keys:
                 # Check if all sliders have been touched/rated
-                return {f'Q{idx + 1}_{QUESTIONS[idx][0]}': s.markerPos for idx, s in enumerate(sliders)}
+                return {
+                    f"Q{idx + 1}_{QUESTIONS[idx][0]}": s.markerPos
+                    for idx, s in enumerate(sliders)
+                }
 
     def execute(self) -> dict[str, Any]:
         win = visual.Window(
-            size=self.cfg.get('size', [1100, 800]),
-            fullscr=self.cfg.get('fullscreen', False),
+            size=self.cfg.get("size", [1100, 800]),
+            fullscr=self.cfg.get("fullscreen", False),
             color=[-0.8, -0.8, -0.8],  # Slightly lighter grey for contrast
-            units='height',  # This is key for proportional scaling
+            units="height",  # This is key for proportional scaling
+            checkTiming=False,
         )
 
         ratings = self.show_all_questions(win)
 
-        results = {'Timestamp': datetime.now(tz=timezone.utc).isoformat(timespec='seconds')}
+        results = {
+            "Timestamp": datetime.now(tz=timezone.utc).isoformat(timespec="seconds")
+        }
         results.update(ratings)
 
         # Save CSV
-        output_file = self.cfg.get('nasa_tlx_save_path', 'nasa_tlx_results.csv')
-        with Path(output_file).open('w', newline='') as f:
+        output_file = self.cfg.get("nasa_tlx_save_path", "nasa_tlx_results.csv")
+        with Path(output_file).open("w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=results.keys())
             writer.writeheader()
             writer.writerow(results)
