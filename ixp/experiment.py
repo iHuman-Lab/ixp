@@ -28,7 +28,7 @@ class TaskEntry(NamedTuple):
 
 
 # RemoteSensor handles sensor recording and streaming
-@ray.remote
+@ray.remote(max_concurrency=2)
 class RemoteSensor:
     """
     Ray actor that controls the lifecycle of a Sensor.
@@ -110,6 +110,30 @@ class RemoteSensor:
 
         """
         self.recording = False
+
+    def calibrate(self, screen: int = 0, fullscreen: bool = False) -> None:
+        """
+        Pause recording, run the sensor's calibration procedure, then resume.
+
+        Only has an effect if the underlying sensor implements ``calibrate()``.
+
+        Parameters
+        ----------
+        screen : int, optional
+            Screen index passed to the sensor's calibration window.
+        fullscreen : bool, optional
+            Whether to open the calibration window fullscreen.
+
+        """
+        was_recording = self.recording
+        self.recording = False  # pause the start() loop
+
+        if hasattr(self.sensor, 'calibrate'):
+            self.sensor.calibrate(screen=screen, fullscreen=fullscreen)
+
+        if was_recording:
+            self.recording = True
+            self.start()
 
     def set_task(self, task_name: str) -> None:
         """
@@ -246,6 +270,33 @@ class Experiment:
             sensor_config=sensor_config,
             sample_interval=sample_interval,
         )
+
+    def calibrate_sensor(self, name: str, screen: int = 0, fullscreen: bool = False) -> None:
+        """
+        Recalibrate a registered sensor by name.
+
+        Blocks until calibration is complete. Safe to call between tasks
+        or between trials (if the sensor actor handle is passed to the task).
+
+        Parameters
+        ----------
+        name : str
+            The sensor name used in ``register_sensor()``.
+        screen : int, optional
+            Screen index for the calibration window.
+        fullscreen : bool, optional
+            Whether to open the calibration window fullscreen.
+
+        Raises
+        ------
+        KeyError
+            If no sensor with the given name is registered.
+
+        """
+        if name not in self.sensors:
+            msg = f'No sensor named "{name}" registered.'
+            raise KeyError(msg)
+        ray.get(self.sensors[name].calibrate.remote(screen=screen, fullscreen=fullscreen))
 
     def _run_task(
         self,

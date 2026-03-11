@@ -208,7 +208,13 @@ class Block:
         self.trials.append((order, trial))
         self.trials.sort(key=lambda x: x[0])
 
-    def execute(self, order: str = 'predefined', lsl_stream: StreamOutlet | None = None):
+    def execute(
+        self,
+        order: str = 'predefined',
+        lsl_stream: StreamOutlet | None = None,
+        before_trial_fn: Any | None = None,
+        after_trial_fn: Any | None = None,
+    ):
         """
         Execute all trials in the block.
 
@@ -223,6 +229,12 @@ class Block:
             Default is 'predefined'.
         lsl_stream : StreamOutlet | None, optional
             The task-level LSL outlet to inject into each LSLTrial.
+        before_trial_fn : callable | None, optional
+            Optional callable invoked before every trial starts.
+            Use this to recalibrate or set up state before each trial.
+        after_trial_fn : callable | None, optional
+            Optional callable invoked after each trial (except the last).
+            Use this to recalibrate sensors, show break screens, etc.
 
         Raises
         ------
@@ -237,6 +249,11 @@ class Block:
 
         results = []
         for trial in trials_list:
+            # Run before trial function if provided
+            if before_trial_fn is not None:
+                before_trial_fn()
+
+            # Run the trial
             trial.initialize()
             if isinstance(trial, LSLTrial):
                 trial.lsl_stream = lsl_stream
@@ -247,6 +264,10 @@ class Block:
                 if result is not None:
                     results.append(result)
             trial.clean_up()
+
+            # Run after trial function if provided
+            if after_trial_fn is not None:
+                after_trial_fn()
         return results
 
 
@@ -348,7 +369,7 @@ class Task(ABC):
         """
         if self.blocks:
             for block in self.blocks:
-                block.execute(order, lsl_stream=self.lsl_stream)
+                block.execute(order, lsl_stream=self.lsl_stream, after_trial_fn=None)
         else:
             msg = 'execute() must be implemented in subclass for tasks without blocks'
             raise NotImplementedError(msg)

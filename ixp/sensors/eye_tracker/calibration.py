@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 import numpy as np
+import tobii_research as tobii
 from psychopy import core, event, visual
 
 # Constants
@@ -232,6 +233,99 @@ def draw_eye_positions(tracker, psycho_win: visual.Window):
         if handle_user_input(psycho_win, tracker.stopGazeData):
             return
         event.clearEvents(eventType='keyboard')
+
+
+DEFAULT_CALIBRATION_POINTS = [
+    (0.1, 0.1),
+    (0.9, 0.1),
+    (0.5, 0.5),
+    (0.1, 0.9),
+    (0.9, 0.9),
+]
+
+CALIBRATION_POINT_RADII = [0.07, 0.05, 0.03, 0.02]
+CALIBRATION_SHRINK_WAIT = 0.1
+CALIBRATION_INTER_POINT_WAIT = 0.5
+
+
+def run_calibration(
+    tracker,
+    psycho_win: visual.Window,
+    calibration_points: list[tuple[float, float]] | None = None,
+) -> tobii.CalibrationResult:
+    """
+    Run the Tobii screen-based calibration procedure.
+
+    Displays each calibration point as a shrinking circle to attract fixation,
+    collects calibration data, then computes and applies the calibration.
+
+    Parameters
+    ----------
+    tracker : TobiiEyeTracker
+        Eye tracker instance. Must have ``eyetracker`` and ``ada2PsychoPix`` available.
+    psycho_win : visual.Window
+        PsychoPy window to draw calibration stimuli on.
+    calibration_points : list of (float, float), optional
+        ADA-normalized (x, y) positions for calibration targets.
+        Defaults to a 5-point configuration.
+
+    Returns
+    -------
+    tobii.CalibrationResult
+        The result object from Tobii's compute_and_apply call, containing
+        the calibration status and per-point accuracy data.
+
+    Raises
+    ------
+    RuntimeError
+        If the eye tracker is not connected.
+
+    """
+    if tracker.eyetracker is None:
+        msg = 'Eye tracker not connected.'
+        raise RuntimeError(msg)
+
+    if calibration_points is None:
+        calibration_points = DEFAULT_CALIBRATION_POINTS
+
+    # Ensure the tracker window is set so ada2PsychoPix works
+    tracker.set_window(psycho_win)
+
+    calibration = tobii.ScreenBasedCalibration(tracker.eyetracker)
+    calibration.enter_calibration_mode()
+    logging.info('Entered calibration mode.')
+
+    point_stim = visual.Circle(
+        psycho_win,
+        fillColor=COLORS['white'],
+        lineColor=COLORS['white'],
+        units='pix',
+    )
+
+    for point in calibration_points:
+        draw_pos = tracker.ada2PsychoPix(point)
+
+        # Shrink the circle to attract fixation
+        for radius_norm in CALIBRATION_POINT_RADII:
+            point_stim.radius = int(radius_norm * psycho_win.getSizePix()[1])
+            point_stim.pos = draw_pos
+            point_stim.draw()
+            psycho_win.flip()
+            core.wait(CALIBRATION_SHRINK_WAIT)
+
+        result = calibration.collect_data(point[0], point[1])
+        if result != tobii.CALIBRATION_STATUS_SUCCESS:
+            logging.warning(f'Retrying calibration point {point}.')
+            calibration.collect_data(point[0], point[1])
+
+        psycho_win.flip()  # blank between points
+        core.wait(CALIBRATION_INTER_POINT_WAIT)
+
+    calibration_result = calibration.compute_and_apply()
+    calibration.leave_calibration_mode()
+    logging.info(f'Calibration complete. Status: {calibration_result.status}')
+
+    return calibration_result
 
 
 def get_default_validation_points() -> dict[str, tuple[float, float]]:

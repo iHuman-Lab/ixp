@@ -5,8 +5,6 @@ from typing import Any
 import numpy as np
 from scipy.spatial import distance
 
-from .utils import trackbox_to_psycho_norm
-
 # Constants
 TRACKBOX_OUTSIDE = (0.99, 0.99)
 INVALID_GAZE = -1.0
@@ -81,8 +79,10 @@ def calculate_trackbox_coordinate(point: tuple, valid: int) -> tuple:
     """
     if valid != 1:
         return TRACKBOX_OUTSIDE
-    normalized = trackbox_to_psycho_norm((point[0], point[1]))
-    return (-normalized[0] * TRACKBOX_SCALE, normalized[1])
+    # Convert trackbox normalized [0, 1] coords to PsychoPy norm [-1, 1]
+    x_norm = point[0] * 2 - 1
+    y_norm = point[1] * 2 - 1
+    return (-x_norm * TRACKBOX_SCALE, y_norm)
 
 
 def get_trackbox_position(gaze_data: dict[str, Any]) -> tuple[tuple[float, float], tuple[float, float]]:

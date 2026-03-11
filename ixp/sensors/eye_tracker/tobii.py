@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from typing import Any
 
+import numpy as np
 import tobii_research as tobii
 from psychopy import monitors, visual
 
 from ixp.sensors.base_sensor import Sensor
+from ixp.sensors.eye_tracker.data import get_eye_distance, get_gaze_position, get_trackbox_position
+from ixp.sensors.eye_tracker.utils import active_dis_to_psycho_pix, trackbox_to_active_disp
 
 
 class TobiiEyeTracker(Sensor):
@@ -53,6 +56,7 @@ class TobiiEyeTracker(Sensor):
         self.tracking = False
         self.gaze_data: dict[str, Any] = {}
         self._monitor = None
+        self.win = None
 
         # Display coordinates
         self.display_area: dict[str, tuple[float, float]] = {}
@@ -67,6 +71,7 @@ class TobiiEyeTracker(Sensor):
         """
         serial_string = self.config.get('serial_string')
         self.connect_to_tracker(serial_string)
+        self.setup_display_area()
         self.start_tracking()
 
     def get_data_signature(self) -> dict[str, Any]:
@@ -279,6 +284,165 @@ class TobiiEyeTracker(Sensor):
         self.eyetracker.unsubscribe_from(tobii.EYETRACKER_GAZE_DATA, self._gaze_callback)
         self.tracking = False
         self.logger.info('Gaze tracking stopped')
+
+    def calibrate(self, screen: int = 0, fullscreen: bool = False) -> None:
+        """
+        Run the full calibration and validation procedure.
+
+        Opens a PsychoPy window, shows the trackbox positioning screen,
+        runs the Tobii calibration, validates accuracy, then closes the window.
+        Any existing gaze subscription is stopped before calibration and
+        restarted afterward.
+
+        Parameters
+        ----------
+        screen : int, optional
+            Screen index for the calibration window. Default is 0.
+        fullscreen : bool, optional
+            Whether to open the window in fullscreen mode. Default is False.
+
+        """
+        from ixp.sensors.eye_tracker.calibration import (
+            draw_eye_positions,
+            run_calibration,
+            run_validation,
+        )
+
+        if self.tracking:
+            self.stop_tracking()
+
+        win = visual.Window(fullscr=fullscreen, color='black', units='pix', screen=screen, checkTiming=False)
+        self.set_window(win)
+
+        try:
+            self.start_tracking()
+            draw_eye_positions(self, win)   # user positions themselves; presses 'c'
+            run_calibration(self, win)
+            self.start_tracking()
+            run_validation(self)            # user verifies; presses 'c'
+            self.stop_tracking()
+        finally:
+            win.close()
+            self.win = None
+
+    def set_window(self, win: visual.Window) -> None:
+        """
+        Set the PsychoPy window used for calibration and validation display.
+
+        Parameters
+        ----------
+        win : visual.Window
+            The PsychoPy window to use.
+
+        """
+        self.win = win
+
+    def trackboxEyePos(self) -> tuple[tuple[float, float], tuple[float, float]]:
+        """
+        Return left and right eye positions in PsychoPy norm trackbox coordinates.
+
+        Returns
+        -------
+        tuple of tuples
+            ((left_x, left_y), (right_x, right_y)) in PsychoPy norm space.
+            Returns (0.99, 0.99) for each eye when invalid or no data.
+
+        """
+        if not self.gaze_data:
+            return (0.99, 0.99), (0.99, 0.99)
+        return get_trackbox_position(self.gaze_data)
+
+    def getAvgEyeDist(self) -> float:
+        """
+        Return average eye distance from the tracker origin in centimeters.
+
+        Returns
+        -------
+        float
+            Distance in centimeters, or 0 if no data available.
+
+        """
+        if not self.gaze_data:
+            return 0.0
+        return get_eye_distance(self.gaze_data)
+
+    def getAvgGazePos(self) -> tuple[float, float]:
+        """
+        Return average gaze position in normalized display area coordinates.
+
+        Returns
+        -------
+        tuple
+            (x, y) gaze position, or (nan, nan) if no data available.
+
+        """
+        if not self.gaze_data:
+            return (np.nan, np.nan)
+        return get_gaze_position(self.gaze_data)
+
+    def startGazeData(self) -> None:
+        """Start gaze data collection (alias for start_tracking)."""
+        self.start_tracking()
+
+    def stopGazeData(self) -> None:
+        """Stop gaze data collection (alias for stop_tracking)."""
+        self.stop_tracking()
+
+    def tb2Ada(self, xy_coords: tuple[float, float]) -> tuple[float, float]:
+        """
+        Convert trackbox normalized coordinates to active display area (ADA) coordinates.
+
+        Parameters
+        ----------
+        xy_coords : tuple
+            (x, y) in trackbox normalized space, e.g. (1, 1) for full scale.
+
+        Returns
+        -------
+        tuple
+            (x, y) in normalized ADA space.
+
+        Raises
+        ------
+        ValueError
+            If display area has not been set up yet.
+
+        """
+        if not self.display_area or not self.trackbox:
+            msg = 'Display area not set up. Call setup_display_area() first.'
+            raise ValueError(msg)
+        tb_bl = self.trackbox['front_bottom_left']
+        ada_w, ada_h = self.display_area['dimensions']
+        ada_bl = (-ada_w / 2, -ada_h / 2)
+        return (
+            xy_coords[0] * tb_bl[0] / ada_bl[0],
+            xy_coords[1] * tb_bl[1] / ada_bl[1],
+        )
+
+    def ada2PsychoPix(self, xy_coords: tuple[float, float]) -> tuple[int, int]:
+        """
+        Convert ADA normalized coordinates to PsychoPy pixel coordinates.
+
+        Parameters
+        ----------
+        xy_coords : tuple
+            (x, y) in normalized ADA space [0, 1].
+
+        Returns
+        -------
+        tuple
+            (x, y) in PsychoPy pixel coordinates.
+
+        Raises
+        ------
+        ValueError
+            If no PsychoPy window is set. Call set_window() first.
+
+        """
+        if self.win is None:
+            msg = 'No PsychoPy window set. Call set_window() first.'
+            raise ValueError(msg)
+        return active_dis_to_psycho_pix(xy_coords, self.win)
 
     def get_current_gaze(self) -> dict[str, Any] | None:
         """
