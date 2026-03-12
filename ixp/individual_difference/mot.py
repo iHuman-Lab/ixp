@@ -169,6 +169,8 @@ class MOT(Task):
             units='height',
             color=[0.5, 0.5, 0.5],  # Neutral grey
             fullscr=self.config.get('fullscreen', False),
+            screen=self.config.get('display', 0),
+            checkTiming=False,
         )
 
         try:

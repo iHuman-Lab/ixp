@@ -136,6 +136,8 @@ class VS(Task):
             units='height',
             color=[0.5, 0.5, 0.5],  # RGB -1 to 1 or normalized
             fullscr=self.config.get('fullscreen', False),
+            screen=self.config.get('display', 0),
+            checkTiming=False,
         )
         try:
             results = []
