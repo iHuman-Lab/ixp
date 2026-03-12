@@ -2,13 +2,16 @@ from __future__ import annotations
 
 from typing import Any
 
-import numpy as np
 import tobii_research as tobii
-from psychopy import monitors, visual
+from psychopy import core, visual
 
 from ixp.sensors.base_sensor import Sensor
 from ixp.sensors.eye_tracker.data import get_eye_distance, get_gaze_position, get_trackbox_position
-from ixp.sensors.eye_tracker.utils import active_dis_to_psycho_pix, trackbox_to_active_disp
+from ixp.sensors.eye_tracker.utils import (
+    detect_screen_size_mm,
+    print_calibration_results,
+    show_calibration_point,
+)
 
 
 class TobiiEyeTracker(Sensor):
@@ -55,12 +58,7 @@ class TobiiEyeTracker(Sensor):
         self.eyetracker = None
         self.tracking = False
         self.gaze_data: dict[str, Any] = {}
-        self._monitor = None
         self.win = None
-
-        # Display coordinates
-        self.display_area: dict[str, tuple[float, float]] = {}
-        self.trackbox: dict[str, tuple[float, float]] = {}
 
     def initialize(self) -> None:
         """
@@ -71,7 +69,6 @@ class TobiiEyeTracker(Sensor):
         """
         serial_string = self.config.get('serial_string')
         self.connect_to_tracker(serial_string)
-        self.setup_display_area()
         self.start_tracking()
 
     def get_data_signature(self) -> dict[str, Any]:
@@ -158,85 +155,6 @@ class TobiiEyeTracker(Sensor):
             msg = f'Failed to connect: {e}'
             raise ConnectionError(msg) from e
 
-    def setup_display_area(self) -> None:
-        """
-        Initialize display area and trackbox coordinates.
-
-        Raises
-        ------
-        ValueError
-            If eye tracker is not connected
-
-        """
-        if not self.eyetracker:
-            msg = 'Eye tracker not connected'
-            raise ValueError(msg)
-
-        # Get display area coordinates
-        display = self.eyetracker.get_display_area()
-        self.display_area = {
-            'bottom_left': display.bottom_left,
-            'bottom_right': display.bottom_right,
-            'top_left': display.top_left,
-            'top_right': display.top_right,
-            'dimensions': (display.width, display.height),
-        }
-
-        # Get trackbox coordinates
-        box = self.eyetracker.get_track_box()
-        self.trackbox = {
-            'front_bottom_left': box.front_lower_left,
-            'front_bottom_right': box.front_lower_right,
-            'front_top_left': box.front_upper_left,
-            'front_top_right': box.front_upper_right,
-            'dimensions': (
-                abs(box.front_lower_right[0] - box.front_lower_left[0]),
-                abs(box.front_upper_left[1] - box.front_lower_left[1]),
-            ),
-        }
-
-    def setup_monitor(self, name: str | None = None, dimensions: tuple[int, int] | None = None) -> None:
-        """
-        Configure monitor settings.
-
-        Parameters
-        ----------
-        name : str, optional
-            Monitor name. Uses first available if None
-        dimensions : tuple(int, int), optional
-            Monitor dimensions (width, height). Uses window size if None
-
-        Raises
-        ------
-        ValueError
-            If no monitors are found
-        TypeError
-            If dimensions are not a tuple
-
-        """
-        available_monitors = monitors.getAllMonitors()
-        if not available_monitors:
-            msg = 'No monitors found'
-            raise ValueError(msg)
-
-        if dimensions is None:
-            temp_win = visual.Window(units='pix')
-            dimensions = tuple(temp_win.size)
-            temp_win.close()
-
-        if not isinstance(dimensions, tuple):
-            msg = 'Dimensions must be a tuple (width, height)'
-            raise TypeError(msg)
-
-        monitor_name = name or available_monitors[0]
-        monitor = monitors.Monitor(monitor_name)
-        monitor.setSizePix(dimensions)
-        monitor.saveMon()
-
-        self._monitor = monitor
-        log_msg = f'Monitor "{monitor_name}" configured: {dimensions!s}'
-        self.logger.info(log_msg)
-
     def _gaze_callback(self, gaze_data: dict[str, Any]) -> None:
         """
         Store received gaze data.
@@ -285,45 +203,156 @@ class TobiiEyeTracker(Sensor):
         self.tracking = False
         self.logger.info('Gaze tracking stopped')
 
-    def calibrate(self, screen: int = 0, fullscreen: bool = False) -> None:
+    def set_display_area(
+        self,
+        width_mm: float | None = None,
+        height_mm: float | None = None,
+        mounting_offset_mm: float = 95.0,
+        screen: int = 0,
+    ) -> None:
         """
-        Run the full calibration and validation procedure.
+        Set the eye tracker's display area from physical screen dimensions.
 
-        Opens a PsychoPy window, shows the trackbox positioning screen,
-        runs the Tobii calibration, validates accuracy, then closes the window.
-        Any existing gaze subscription is stopped before calibration and
-        restarted afterward.
+        The display area is expressed in the tracker's User Coordinate System
+        (UCS, in mm), where the origin is the tracker's optical centre, Y points
+        up, and X points to the right.  This is normally configured once via
+        Tobii Eye Tracker Manager, but can be set programmatically when that is
+        not possible.
+
+        When *width_mm* and *height_mm* are omitted (or ``None``), the physical
+        dimensions are read automatically from the OS via ``xrandr``/``tkinter``.
 
         Parameters
         ----------
+        width_mm : float, optional
+            Physical width of the screen in millimetres.  Auto-detected if
+            ``None``.
+        height_mm : float, optional
+            Physical height of the screen in millimetres.  Auto-detected if
+            ``None``.
+        mounting_offset_mm : float, optional
+            Distance in mm from the tracker's optical centre to the bottom edge
+            of the screen.  A value of 95 mm suits most under-bezel Tobii
+            Pro/Core mounts (default: 95.0).
         screen : int, optional
-            Screen index for the calibration window. Default is 0.
-        fullscreen : bool, optional
-            Whether to open the window in fullscreen mode. Default is False.
+            Display index used when auto-detecting dimensions (default: 0).
+
+        Raises
+        ------
+        ValueError
+            If the eye tracker is not connected.
 
         """
-        from ixp.sensors.eye_tracker.calibration import (
-            draw_eye_positions,
-            run_calibration,
-            run_validation,
+        if not self.eyetracker:
+            msg = 'Eye tracker not connected'
+            raise ValueError(msg)
+
+        if width_mm is None or height_mm is None:
+            detected_w, detected_h = detect_screen_size_mm(screen)
+            width_mm = width_mm if width_mm is not None else detected_w
+            height_mm = height_mm if height_mm is not None else detected_h
+            self.logger.info('Auto-detected screen size: %.1f x %.1f mm', width_mm, height_mm)
+
+        half_w = width_mm / 2.0
+        top_y = mounting_offset_mm + height_mm
+        display_area = tobii.DisplayArea({
+            'top_left':    (-half_w, top_y,                  0.0),
+            'top_right':   ( half_w, top_y,                  0.0),
+            'bottom_left': (-half_w, mounting_offset_mm,     0.0),
+        })
+        self.eyetracker.set_display_area(display_area)
+        self.logger.info(
+            'Display area set: %.1f x %.1f mm, offset=%.1f mm',
+            width_mm, height_mm, mounting_offset_mm,
         )
 
-        if self.tracking:
-            self.stop_tracking()
+    def calibrate(self, screen: int = 1, fullscreen: bool = True) -> None:  # noqa: FBT001, FBT002
+        """
+        Run a 5-point screen-based calibration.
 
-        win = visual.Window(fullscr=fullscreen, color='black', units='pix', screen=screen, checkTiming=False)
-        self.set_window(win)
+        A PsychoPy window is created for calibration if none has been set via
+        :meth:`set_window`.  The window is closed afterwards only if it was
+        created internally.
 
+        Parameters
+        ----------
+        screen : int
+            Monitor index passed to :class:`psychopy.visual.Window` when a new
+            window is created (ignored when a window was set externally).
+        fullscreen : bool
+            Whether to open the calibration window in fullscreen mode (ignored
+            when a window was set externally).
+
+        """
+        # Use an externally supplied window, or create a temporary one.
+        own_win = self.win is None
+        win = self.win if self.win is not None else visual.Window(
+            fullscr=fullscreen,
+            screen=screen,
+            units='pix',
+            color='black',
+            checkTiming=False,
+        )
+
+        # Calibration target: outer ring shrinks toward a small inner dot to
+        # pull the participant's fovea to the exact centre before sampling.
+        outer_start = 40   # px - initial radius of outer ring
+        outer_end   = 6    # px - final radius after animation
+        animate_dur = 3.0  # s  - shrink animation duration
+        hold_dur    = 0.5  # s  - static hold before collecting data
+        inter_dur   = 0.5  # s  - blank gap between points
+
+        target_outer = visual.Circle(win, radius=outer_start, fillColor='white', lineColor='white', units='pix')
+        target_inner = visual.Circle(win, radius=4, fillColor='black', lineColor='black', units='pix')
+
+        calibration = tobii.ScreenBasedCalibration(self.eyetracker)
+
+        # Enter calibration mode.  If the display area has not been configured
+        # on the device yet, attempt to derive it from the PsychoPy monitor
+        # before retrying once.
         try:
-            self.start_tracking()
-            draw_eye_positions(self, win)   # user positions themselves; presses 'c'
-            run_calibration(self, win)
-            self.start_tracking()
-            run_validation(self)            # user verifies; presses 'c'
-            self.stop_tracking()
-        finally:
+            calibration.enter_calibration_mode()
+        except tobii.EyeTrackerDisplayAreaNotValidError:
+            self.set_display_area()
+            calibration.enter_calibration_mode()
+
+        self.logger.info(
+            'Entered calibration mode for eye tracker %s',
+            self.eyetracker.serial_number,
+        )
+
+        # Normalized (0-1) calibration point positions; (0,0) = top-left.
+        # Points are kept 0.2 from each edge; 0.1 causes ~0.1 normalized-unit
+        # accuracy loss on the Tobii Spark at extreme gaze angles.
+        points_to_calibrate = [(0.5, 0.5), (0.2, 0.2), (0.2, 0.8), (0.8, 0.2), (0.8, 0.8)]
+
+        clock = core.Clock()
+        for point in points_to_calibrate:
+            escaped = show_calibration_point(
+                win, calibration, clock, target_outer, target_inner,
+                point, outer_start, outer_end, animate_dur, hold_dur, inter_dur,
+            )
+            if escaped:
+                if own_win:
+                    win.close()
+                return
+
+        # Clear the screen while computing.
+        win.flip()
+
+        calibration_result = calibration.compute_and_apply()
+        print_calibration_results(calibration_result)
+        self.logger.info(
+            'Calibration result: %s, collected at %d points',
+            calibration_result.status,
+            len(calibration_result.calibration_points),
+        )
+
+        calibration.leave_calibration_mode()
+        self.logger.info('Left calibration mode')
+
+        if own_win:
             win.close()
-            self.win = None
 
     def set_window(self, win: visual.Window) -> None:
         """
@@ -337,7 +366,7 @@ class TobiiEyeTracker(Sensor):
         """
         self.win = win
 
-    def trackboxEyePos(self) -> tuple[tuple[float, float], tuple[float, float]]:
+    def get_trackbox_eye_pos(self) -> tuple[tuple[float, float], tuple[float, float]]:
         """
         Return left and right eye positions in PsychoPy norm trackbox coordinates.
 
@@ -352,7 +381,7 @@ class TobiiEyeTracker(Sensor):
             return (0.99, 0.99), (0.99, 0.99)
         return get_trackbox_position(self.gaze_data)
 
-    def getAvgEyeDist(self) -> float:
+    def get_avg_eye_distance(self) -> float:
         """
         Return average eye distance from the tracker origin in centimeters.
 
@@ -366,7 +395,7 @@ class TobiiEyeTracker(Sensor):
             return 0.0
         return get_eye_distance(self.gaze_data)
 
-    def getAvgGazePos(self) -> tuple[float, float]:
+    def get_avg_gaze_pos(self) -> tuple[float, float]:
         """
         Return average gaze position in normalized display area coordinates.
 
@@ -377,72 +406,8 @@ class TobiiEyeTracker(Sensor):
 
         """
         if not self.gaze_data:
-            return (np.nan, np.nan)
+            return (float('nan'), float('nan'))
         return get_gaze_position(self.gaze_data)
-
-    def startGazeData(self) -> None:
-        """Start gaze data collection (alias for start_tracking)."""
-        self.start_tracking()
-
-    def stopGazeData(self) -> None:
-        """Stop gaze data collection (alias for stop_tracking)."""
-        self.stop_tracking()
-
-    def tb2Ada(self, xy_coords: tuple[float, float]) -> tuple[float, float]:
-        """
-        Convert trackbox normalized coordinates to active display area (ADA) coordinates.
-
-        Parameters
-        ----------
-        xy_coords : tuple
-            (x, y) in trackbox normalized space, e.g. (1, 1) for full scale.
-
-        Returns
-        -------
-        tuple
-            (x, y) in normalized ADA space.
-
-        Raises
-        ------
-        ValueError
-            If display area has not been set up yet.
-
-        """
-        if not self.display_area or not self.trackbox:
-            msg = 'Display area not set up. Call setup_display_area() first.'
-            raise ValueError(msg)
-        tb_bl = self.trackbox['front_bottom_left']
-        ada_w, ada_h = self.display_area['dimensions']
-        ada_bl = (-ada_w / 2, -ada_h / 2)
-        return (
-            xy_coords[0] * tb_bl[0] / ada_bl[0],
-            xy_coords[1] * tb_bl[1] / ada_bl[1],
-        )
-
-    def ada2PsychoPix(self, xy_coords: tuple[float, float]) -> tuple[int, int]:
-        """
-        Convert ADA normalized coordinates to PsychoPy pixel coordinates.
-
-        Parameters
-        ----------
-        xy_coords : tuple
-            (x, y) in normalized ADA space [0, 1].
-
-        Returns
-        -------
-        tuple
-            (x, y) in PsychoPy pixel coordinates.
-
-        Raises
-        ------
-        ValueError
-            If no PsychoPy window is set. Call set_window() first.
-
-        """
-        if self.win is None:
-            msg = 'No PsychoPy window set. Call set_window() first.'
-            raise ValueError(msg)
-        return active_dis_to_psycho_pix(xy_coords, self.win)
 
     def get_current_gaze(self) -> dict[str, Any] | None:
         """
