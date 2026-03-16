@@ -132,7 +132,6 @@ class VS(Task):
 
     def execute(self, order: str = 'predefined'):
         self.config['_window'] = visual.Window(
-            size=self.config.get('window_size', [1100, 800]),
             units='height',
             color=[0.5, 0.5, 0.5],  # RGB -1 to 1 or normalized
             fullscr=self.config.get('fullscreen', False),

@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import csv
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 from psychopy import core, event, visual
@@ -88,13 +86,6 @@ class NasaTLX(Task):
             "Timestamp": datetime.now(tz=timezone.utc).isoformat(timespec="seconds")
         }
         results.update(ratings)
-
-        # Save CSV
-        output_file = self.cfg.get("nasa_tlx_save_path", "nasa_tlx_results.csv")
-        with Path(output_file).open("w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=results.keys())
-            writer.writeheader()
-            writer.writerow(results)
 
         win.close()
         return results

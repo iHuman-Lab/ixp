@@ -97,32 +97,5 @@ with skip_run('skip', 'multi_object_tracking') as check, check():
     experiment.close()
 
 
-with skip_run('run', 'lab_recorder') as check, check():
-    import threading
-    import time
-
-    import pylsl
-
-    # ── Dummy LSL streams ──────────────────────────────────────────────────
-    def _push_stream(name: str, stype: str, n_ch: int, srate: float) -> None:
-        info = pylsl.StreamInfo(name, stype, n_ch, srate, 'float32', f'dummy-{name}')
-        outlet = pylsl.StreamOutlet(info)
-        sample = [0.0] * n_ch
-        while True:
-            outlet.push_sample(sample)
-            time.sleep(1.0 / srate if srate > 0 else 1.0)
-
-    threads = [
-        threading.Thread(target=_push_stream, args=(_name, _type, _ch, _rate), daemon=True)
-        for _name, _type, _ch, _rate in [
-            ('EEG', 'EEG', 8, 256.0),
-            ('Markers', 'Markers', 1, 0.0),
-        ]
-    ]
-    for t in threads:
-        t.start()
-
-    time.sleep(0.5)  # let outlets register before resolver runs
-
-    for t in threads:
-        t.join()
+with skip_run('skip', 'lab_recorder') as check, check():
+    pass

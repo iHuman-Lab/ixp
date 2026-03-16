@@ -114,6 +114,11 @@ class Recorder:
         """Return True if recording is active."""
         return self._recording
 
+    @property
+    def save_dir(self) -> Path | None:
+        """Directory where the current XDF file is being saved, or None if not started."""
+        return self._filepath.parent if self._filepath else None
+
     def start(self) -> None:
         """
         Discover LSL streams, show the recorder dialog, then begin recording.

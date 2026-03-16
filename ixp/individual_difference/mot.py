@@ -165,7 +165,6 @@ class MOT(Task):
     def execute(self, order: str = 'predefined'):
         # Initialize the PsychoPy window
         self.config['_window'] = visual.Window(
-            size=self.config.get('window_size', [1000, 800]),
             units='height',
             color=[0.5, 0.5, 0.5],  # Neutral grey
             fullscr=self.config.get('fullscreen', False),

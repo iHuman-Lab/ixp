@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import csv
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 from psychopy import core, event, visual
@@ -99,13 +97,6 @@ class SART(Task):
             "Timestamp": datetime.now(tz=timezone.utc).isoformat(timespec="seconds")
         }
         results.update(ratings)
-
-        # Save to CSV
-        output_file = self.cfg.get("sart_save_path", "sart_results.csv")
-        with Path(output_file).open("w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=results.keys())
-            writer.writeheader()
-            writer.writerow(results)
 
         win.close()
         return results

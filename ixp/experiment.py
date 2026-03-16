@@ -337,8 +337,10 @@ class Experiment:
         results = ray.get(task_actor.execute.remote())
 
         # Save to CSV if the task returned row data (non-streaming tasks)
-        if results and isinstance(results, list) and isinstance(results[0], dict):
-            save_task_results(task_name, results, {})
+        if results:
+            rows = results if isinstance(results, list) else [results]
+            if isinstance(rows[0], dict):
+                save_task_results(task_name, rows)
 
     def run(self) -> None:
         """
