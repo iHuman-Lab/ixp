@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import queue
 from typing import Any
 
 import tobii_research as tobii
@@ -54,6 +55,8 @@ class TobiiEyeTracker(Sensor):
         self.tracking = False
         self.gaze_data: dict[str, Any] = {}
         self.win = None
+        self._prev_timestamp: float | None = None
+        self._gaze_queue: queue.Queue = queue.Queue()
 
     def initialize(self) -> None:
         """Connect to the tracker and start gaze streaming."""
@@ -85,21 +88,28 @@ class TobiiEyeTracker(Sensor):
         Channels: device_timestamp, avg_gaze_point_x, avg_gaze_point_y, avg_pupil_diam,
         avg_eye_pos_x, avg_eye_pos_y, avg_eye_pos_z, avg_eye_distance, eye_validities.
         """
-        if not self.gaze_data:
+        try:
+            gaze_data = self._gaze_queue.get_nowait()
+        except queue.Empty:
             return None
 
-        timestamp = self.gaze_data.get('device_time_stamp', 0.0)
+        timestamp = gaze_data.get('device_time_stamp', 0.0)
 
-        gaze_pos = get_gaze_position(self.gaze_data)
+        if self._prev_timestamp is not None and timestamp > self._prev_timestamp:
+            dt = (timestamp - self._prev_timestamp) / 1e6  # µs → s
+            print(f'Sampling rate: {1.0 / dt:.1f} Hz')
+        self._prev_timestamp = timestamp
+
+        gaze_pos = get_gaze_position(gaze_data)
         if self.win is not None and not any(math.isnan(v) for v in gaze_pos):
             gaze_xy = active_disp_to_mont_pix(gaze_pos, self.win)
         else:
             gaze_xy = gaze_pos
 
-        avg_pupil = get_pupil_size(self.gaze_data)
-        eye_pos = get_3d_position(self.gaze_data)
+        avg_pupil = get_pupil_size(gaze_data)
+        eye_pos = get_3d_position(gaze_data)
         eye_dist = get_eye_distance(eye_pos)
-        validities = get_eye_validity(self.gaze_data)
+        validities = get_eye_validity(gaze_data)
 
         return [
             timestamp,
@@ -159,8 +169,9 @@ class TobiiEyeTracker(Sensor):
             )
 
     def _gaze_callback(self, gaze_data: dict[str, Any]) -> None:
-        """Store the latest gaze data sample from the tracker callback."""
+        """Enqueue each gaze sample from the tracker callback."""
         self.gaze_data = gaze_data
+        self._gaze_queue.put(gaze_data)
 
     def start_tracking(self) -> None:
         """Subscribe to gaze data stream. Raises ValueError if not connected."""

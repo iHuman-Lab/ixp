@@ -50,7 +50,7 @@ def get_3d_position(gaze_data: dict[str, Any]) -> tuple[float, float, float]:
 
     coordinates = [(left[i], right[i]) for i in range(3)]
     if not any(np.isnan(coord).all() for coord in coordinates):
-        return tuple(np.nanmean(coord) for coord in coordinates)
+        return tuple(np.nanmean(coord).item() for coord in coordinates)
     return (0, 0, 0)
 
 
