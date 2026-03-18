@@ -55,7 +55,6 @@ class TobiiEyeTracker(Sensor):
         self.tracking = False
         self.gaze_data: dict[str, Any] = {}
         self.win = None
-        self._prev_timestamp: float | None = None
         self._gaze_queue: queue.Queue = queue.Queue()
 
     def initialize(self) -> None:
@@ -95,10 +94,6 @@ class TobiiEyeTracker(Sensor):
 
         timestamp = gaze_data.get('device_time_stamp', 0.0)
 
-        if self._prev_timestamp is not None and timestamp > self._prev_timestamp:
-            dt = (timestamp - self._prev_timestamp) / 1e6  # µs → s
-            print(f'Sampling rate: {1.0 / dt:.1f} Hz')
-        self._prev_timestamp = timestamp
 
         gaze_pos = get_gaze_position(gaze_data)
         if self.win is not None and not any(math.isnan(v) for v in gaze_pos):
