@@ -6,7 +6,7 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
-
+from zoneinfo import ZoneInfo
 logger = logging.getLogger(__name__)
 
 _RESULTS_ROOT = Path('results')
@@ -42,9 +42,10 @@ def save_task_results(task_name: str, results: list[dict]) -> None:
 
     """
     subject_id = _next_subject_id()
-    timestamp = datetime.now(tz=timezone.utc).strftime('%Y%m%d_%H%M%S')
-    filename = f'sub-{subject_id}_{task_name}_{timestamp}.csv'
-    path = _RESULTS_ROOT / f'sub-{subject_id}' / filename
+    now_ct = datetime.now(ZoneInfo("America/Chicago"))
+    timestamp = now_ct.strftime('%Y%m%d_%H%M%S')
+    filename = f'sub-P{subject_id}_{task_name}_{timestamp}.csv'
+    path = _RESULTS_ROOT / f'sub-P{subject_id}' / filename
     path.parent.mkdir(parents=True, exist_ok=True)
 
     with path.open('w', newline='') as f:
